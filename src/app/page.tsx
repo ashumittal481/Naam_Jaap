@@ -9,6 +9,8 @@ import { Separator } from "@/components/ui/separator";
 
 const MALA_COUNT = 108;
 
+export type AudioSource = "system" | "ai" | "custom";
+
 export default function Home() {
   const [count, setCount] = useState(0);
   const [malas, setMalas] = useState(0);
@@ -17,10 +19,19 @@ export default function Home() {
   const [isChanting, setIsChanting] = useState(false);
   const [chantText, setChantText] = useState("Om");
   const [chantSpeed, setChantSpeed] = useState(50);
+  
+  const [audioSource, setAudioSource] = useState<AudioSource>("system");
   const [voiceName, setVoiceName] = useState<string>();
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
 
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    audioRef.current = new Audio();
+  }, []);
+  
   useEffect(() => {
     const loadVoices = () => {
       const availableVoices = window.speechSynthesis.getVoices();
@@ -44,17 +55,22 @@ export default function Home() {
   const speak = useCallback(
     (text: string) => {
       if (!isChanting && mode !== "auto") return;
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      if (voiceName) {
-        const selectedVoice = voices.find((v) => v.name === voiceName);
-        if (selectedVoice) {
-          utterance.voice = selectedVoice;
+
+      if (audioSource === 'custom' && customAudioUrl && audioRef.current) {
+        audioRef.current.src = customAudioUrl;
+        audioRef.current.play().catch(console.error);
+      } else {
+        const utterance = new SpeechSynthesisUtterance(text);
+        if (voiceName) {
+          const selectedVoice = voices.find((v) => v.name === voiceName);
+          if (selectedVoice) {
+            utterance.voice = selectedVoice;
+          }
         }
+        window.speechSynthesis.speak(utterance);
       }
-      window.speechSynthesis.speak(utterance);
     },
-    [voiceName, voices, isChanting, mode]
+    [voiceName, voices, isChanting, mode, audioSource, customAudioUrl]
   );
   
   const handleIncrement = useCallback(() => {
@@ -85,6 +101,9 @@ export default function Home() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       window.speechSynthesis.cancel();
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
     };
   }, [isChanting, mode, chantText, chantSpeed, handleIncrement, speak]);
 
@@ -130,11 +149,17 @@ export default function Home() {
           setChantText={setChantText}
           chantSpeed={chantSpeed}
           setChantSpeed={setChantSpeed}
+          audioSource={audioSource}
         />
         
         <Separator className="my-8" />
 
-        <AudioStyleSelector setVoiceName={setVoiceName} />
+        <AudioStyleSelector 
+          setVoiceName={setVoiceName}
+          setAudioSource={setAudioSource}
+          setCustomAudioUrl={setCustomAudioUrl}
+          isChanting={isChanting}
+        />
       </div>
 
        <footer className="text-center mt-12 text-sm text-muted-foreground">

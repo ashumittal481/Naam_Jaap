@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import type { AudioSource } from "@/app/page";
 
 interface ChantControllerProps {
   mode: "manual" | "auto";
@@ -18,6 +19,7 @@ interface ChantControllerProps {
   setChantText: (text: string) => void;
   chantSpeed: number;
   setChantSpeed: (speed: number) => void;
+  audioSource: AudioSource;
 }
 
 const ChantController = ({
@@ -30,7 +32,10 @@ const ChantController = ({
   setChantText,
   chantSpeed,
   setChantSpeed,
+  audioSource
 }: ChantControllerProps) => {
+  const isCustomAudio = audioSource === 'custom';
+
   return (
     <Card className="w-full shadow-md">
       <CardHeader>
@@ -80,8 +85,10 @@ const ChantController = ({
                 id="chant-text"
                 value={chantText}
                 onChange={(e) => setChantText(e.target.value)}
-                disabled={isAutoChanting}
+                disabled={isAutoChanting || isCustomAudio}
+                placeholder={isCustomAudio ? "Plays uploaded/recorded audio" : "e.g. Om"}
               />
+               {isCustomAudio && <p className="text-xs text-muted-foreground">Chant text is disabled when using a custom audio source.</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="chant-speed">Chant Speed</Label>
