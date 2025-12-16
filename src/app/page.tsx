@@ -1,3 +1,145 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import TallyCounter from "@/components/TallyCounter";
+import ChantController from "@/components/ChantController";
+import AudioStyleSelector from "@/components/AudioStyleSelector";
+import { MalaBeadsIcon } from "@/lib/icons";
+import { Separator } from "@/components/ui/separator";
+
+const MALA_COUNT = 108;
+
 export default function Home() {
-  return <></>;
+  const [count, setCount] = useState(0);
+  const [malas, setMalas] = useState(0);
+  const [isCelebrating, setIsCelebrating] = useState(false);
+  const [mode, setMode] = useState<"manual" | "auto">("manual");
+  const [isChanting, setIsChanting] = useState(false);
+  const [chantText, setChantText] = useState("Om");
+  const [chantSpeed, setChantSpeed] = useState(50);
+  const [voiceName, setVoiceName] = useState<string>();
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const loadVoices = () => {
+      const availableVoices = window.speechSynthesis.getVoices();
+      if (availableVoices.length > 0) {
+        setVoices(availableVoices);
+        if(!voiceName) {
+            const defaultVoice = availableVoices.find(v => v.lang.startsWith('en')) || availableVoices[0];
+            if(defaultVoice) setVoiceName(defaultVoice.name);
+        }
+      }
+    };
+    
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
+
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, [voiceName]);
+
+  const speak = useCallback(
+    (text: string) => {
+      if (!isChanting && mode !== "auto") return;
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      if (voiceName) {
+        const selectedVoice = voices.find((v) => v.name === voiceName);
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+        }
+      }
+      window.speechSynthesis.speak(utterance);
+    },
+    [voiceName, voices, isChanting, mode]
+  );
+  
+  const handleIncrement = useCallback(() => {
+    setCount((prevCount) => {
+      const newCount = prevCount + 1;
+      if (newCount >= MALA_COUNT) {
+        setMalas((prevMalas) => prevMalas + 1);
+        setIsCelebrating(true);
+        setTimeout(() => setIsCelebrating(false), 2000);
+        return 0;
+      }
+      return newCount;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (mode === "auto" && isChanting) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      const intervalDuration = (100 - chantSpeed) * 40 + 1000;
+      intervalRef.current = setInterval(() => {
+        speak(chantText);
+        handleIncrement();
+      }, intervalDuration);
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    }
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      window.speechSynthesis.cancel();
+    };
+  }, [isChanting, mode, chantText, chantSpeed, handleIncrement, speak]);
+
+  const handleManualTap = () => {
+    if (mode === "manual") {
+      handleIncrement();
+    }
+  };
+
+  const handleAutoToggle = () => {
+    if (mode === "auto") {
+      setIsChanting((prev) => !prev);
+    }
+  };
+  
+  return (
+    <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-6 md:p-8">
+      <div className="w-full max-w-md mx-auto">
+        <header className="flex flex-col items-center justify-center mb-6 text-center">
+            <MalaBeadsIcon className="h-12 w-12 text-primary mb-2" />
+            <h1 className="font-headline text-4xl font-bold text-foreground">
+              Naam Jaap Sadhana
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Your modern tool for sacred chanting.
+            </p>
+        </header>
+        
+        <TallyCounter count={count} malas={malas} isCelebrating={isCelebrating} />
+        
+        <Separator className="my-8" />
+        
+        <ChantController
+          mode={mode}
+          setMode={(newMode) => {
+            setIsChanting(false);
+            setMode(newMode);
+          }}
+          onManualTap={handleManualTap}
+          onAutoToggle={handleAutoToggle}
+          isAutoChanting={isChanting}
+          chantText={chantText}
+          setChantText={setChantText}
+          chantSpeed={chantSpeed}
+          setChantSpeed={setChantSpeed}
+        />
+        
+        <Separator className="my-8" />
+
+        <AudioStyleSelector setVoiceName={setVoiceName} />
+      </div>
+
+       <footer className="text-center mt-12 text-sm text-muted-foreground">
+        <p>&copy; {new Date().getFullYear()} Naam Jaap Sadhana. All rights reserved.</p>
+      </footer>
+    </main>
+  );
 }

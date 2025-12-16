@@ -1,0 +1,70 @@
+'use server';
+
+/**
+ * @fileOverview This file defines a Genkit flow to customize the audio style of the auto-chant feature.
+ *
+ * The flow takes a desired audio style (e.g., mimicking a specific person's voice) as input
+ * and returns the audio configuration suitable for the TTS service.
+ *
+ * - customizeChantAudioStyle - A function that handles the audio style customization process.
+ * - CustomizeChantAudioStyleInput - The input type for the customizeChantAudioStyle function.
+ * - CustomizeChantAudioStyleOutput - The return type for the customizeChantAudioStyle function.
+ */
+
+import {ai} from '@/ai/genkit';
+import {z} from 'genkit';
+
+const CustomizeChantAudioStyleInputSchema = z.object({
+  desiredStyle: z
+    .string()
+    .describe(
+      'The desired audio style for the chant, e.g., the voice of a famous spiritual leader or a specific accent.'
+    ),
+});
+export type CustomizeChantAudioStyleInput = z.infer<typeof CustomizeChantAudioStyleInputSchema>;
+
+const CustomizeChantAudioStyleOutputSchema = z.object({
+  voiceConfig: z.object({
+    prebuiltVoiceConfig: z.object({
+      voiceName: z.string().describe('The name of the voice to use for TTS.'),
+    }),
+  }).describe('The voice configuration for the TTS service.'),
+  feasibilityReasoning: z.string().optional().describe('Reasoning about the feasibility of the requested audio style.'),
+});
+export type CustomizeChantAudioStyleOutput = z.infer<typeof CustomizeChantAudioStyleOutputSchema>;
+
+export async function customizeChantAudioStyle(input: CustomizeChantAudioStyleInput): Promise<CustomizeChantAudioStyleOutput> {
+  return customizeChantAudioStyleFlow(input);
+}
+
+const prompt = ai.definePrompt({
+  name: 'customizeChantAudioStylePrompt',
+  input: {schema: CustomizeChantAudioStyleInputSchema},
+  output: {schema: CustomizeChantAudioStyleOutputSchema},
+  prompt: `You are an AI that helps customize the audio style for a chanting application.
+
+The user wants to customize the audio style to: {{{desiredStyle}}}
+
+Determine a suitable voice configuration for the TTS service, setting the 'voiceName' appropriately.
+
+Consider the feasibility of mimicking the requested style. If it's difficult or impossible to accurately mimic, explain why in the feasibilityReasoning field.
+
+Output the voice configuration as a JSON object. Make sure that voiceName is a valid option.
+
+Here are some valid voiceName values: Algenib, Achernar.
+
+If the desiredStyle is something that cannot be done using only voiceName, explain in feasibilityReasoning why it is not possible.
+`,
+});
+
+const customizeChantAudioStyleFlow = ai.defineFlow(
+  {
+    name: 'customizeChantAudioStyleFlow',
+    inputSchema: CustomizeChantAudioStyleInputSchema,
+    outputSchema: CustomizeChantAudioStyleOutputSchema,
+  },
+  async input => {
+    const {output} = await prompt(input);
+    return output!;
+  }
+);
