@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirebase, useUser } from "@/firebase";
-import { doc, serverTimestamp } from "firebase/firestore";
+import { collection, serverTimestamp } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import TallyCounter from "@/components/TallyCounter";
 import ChantController from "@/components/ChantController";
@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 
 const MALA_COUNT = 108;
 
-export type AudioSource = "ai" | "record" | "upload";
+export type AudioSource = "ai" | "record" | "upload" | "custom";
 
 export default function Home() {
   const [count, setCount] = useState(0);
@@ -83,9 +83,9 @@ export default function Home() {
     };
     
     const collectionPath = `users/${user.uid}/naamJaapSessions`;
-    const collectionRef = doc(firestore, collectionPath).parent;
+    const sessionsCollectionRef = collection(firestore, collectionPath);
 
-    addDocumentNonBlocking(collectionRef, {
+    addDocumentNonBlocking(sessionsCollectionRef, {
       ...sessionData,
       createdAt: serverTimestamp(),
     });
