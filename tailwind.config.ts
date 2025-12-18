@@ -87,12 +87,18 @@ export default {
           '50%': { opacity: '1' },
           '100%': { transform: 'scale(1.5)', opacity: '0' },
         },
+        'chant-up': {
+            '0%': { transform: 'translateY(2rem) scale(0.8)', opacity: '0' },
+            '50%': { opacity: '0.8' },
+            '100%': { transform: 'translateY(-2rem) scale(1.2)', opacity: '0' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'count-up': 'count-up 0.3s ease-out',
         'ripple-glow': 'ripple-glow 1.5s ease-out',
+        'chant-up': 'chant-up 1s ease-in-out',
       },
     },
   },

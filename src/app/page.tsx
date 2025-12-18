@@ -6,6 +6,7 @@ import ChantController from "@/components/ChantController";
 import AudioStyleSelector from "@/components/AudioStyleSelector";
 import { MalaBeadsIcon } from "@/lib/icons";
 import { Separator } from "@/components/ui/separator";
+import ChantAnimator from "@/components/ChantAnimator";
 
 const MALA_COUNT = 108;
 
@@ -24,6 +25,8 @@ export default function Home() {
   const [voiceName, setVoiceName] = useState<string>();
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
+  
+  const [chantAnimationKey, setChantAnimationKey] = useState(0);
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -74,6 +77,7 @@ export default function Home() {
   );
   
   const handleIncrement = useCallback(() => {
+    setChantAnimationKey(prev => prev + 1);
     setCount((prevCount) => {
       const newCount = prevCount + 1;
       if (newCount >= MALA_COUNT) {
@@ -109,6 +113,7 @@ export default function Home() {
 
   const handleManualTap = () => {
     if (mode === "manual") {
+      speak(chantText);
       handleIncrement();
     }
   };
@@ -131,8 +136,11 @@ export default function Home() {
               Your modern tool for sacred chanting.
             </p>
         </header>
-        
-        <TallyCounter count={count} malas={malas} isCelebrating={isCelebrating} />
+
+        <div className="relative">
+          <TallyCounter count={count} malas={malas} isCelebrating={isCelebrating} />
+          <ChantAnimator text={chantText} animationKey={chantAnimationKey} />
+        </div>
         
         <Separator className="my-8" />
         
