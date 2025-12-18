@@ -7,12 +7,22 @@ import AudioStyleSelector from "@/components/AudioStyleSelector";
 import { MalaBeadsIcon } from "@/lib/icons";
 import { Separator } from "@/components/ui/separator";
 import ChantAnimator from "@/components/ChantAnimator";
+import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Button } from "@/components/ui/button";
+import { auth } from "@/lib/firebase";
+import { Loader } from "lucide-react";
 
 const MALA_COUNT = 108;
 
 export type AudioSource = "ai" | "custom";
 
 export default function Home() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  
   const [count, setCount] = useState(0);
   const [malas, setMalas] = useState(0);
   const [isCelebrating, setIsCelebrating] = useState(false);
@@ -28,9 +38,46 @@ export default function Home() {
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
   
   const [chantAnimationKey, setChantAnimationKey] = useState(0);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const isSavingRef = useRef(false);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login");
+    }
+  }, [user, loading, router]);
+  
+  useEffect(() => {
+    if (user && !isDataLoaded) {
+      const userDocRef = doc(db, "users", user.uid);
+      const unsubscribe = onSnapshot(userDocRef, (doc) => {
+        if (doc.exists()) {
+          const data = doc.data();
+          setCount(data.count || 0);
+          setMalas(data.malas || 0);
+        }
+        setIsDataLoaded(true);
+      });
+      return () => unsubscribe();
+    }
+  }, [user, isDataLoaded]);
+
+  const saveData = useCallback(async (newCount: number, newMalas: number) => {
+    if (user && !isSavingRef.current) {
+      isSavingRef.current = true;
+      try {
+        const userDocRef = doc(db, "users", user.uid);
+        await setDoc(userDocRef, { count: newCount, malas: newMalas, uid: user.uid }, { merge: true });
+      } catch (error) {
+        console.error("Error saving user data:", error);
+      } finally {
+        isSavingRef.current = false;
+      }
+    }
+  }, [user]);
 
   useEffect(() => {
     audioRef.current = new Audio();
@@ -81,14 +128,18 @@ export default function Home() {
     setCount((prevCount) => {
       const newCount = prevCount + 1;
       if (newCount >= MALA_COUNT) {
-        setMalas((prevMalas) => prevMalas + 1);
+        const newMalas = malas + 1;
+        setMalas(newMalas);
         setIsCelebrating(true);
         setTimeout(() => setIsCelebrating(false), 2000);
+        saveData(0, newMalas);
         return 0;
+      } else {
+        saveData(newCount, malas);
+        return newCount;
       }
-      return newCount;
     });
-  }, []);
+  }, [malas, saveData]);
 
   useEffect(() => {
     if (mode === "auto" && isChanting) {
@@ -124,16 +175,34 @@ export default function Home() {
     }
   };
   
+  const handleSignOut = async () => {
+    await auth.signOut();
+    router.push("/login");
+  };
+
+  if (loading || !user || !isDataLoaded) {
+    return (
+      <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background">
+        <Loader className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Loading your Sadhana...</p>
+      </div>
+    );
+  }
+
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-6 md:p-8">
       <div className="w-full max-w-md mx-auto">
         <header className="flex flex-col items-center justify-center mb-6 text-center">
-            <MalaBeadsIcon className="h-12 w-12 text-primary mb-2" />
+            <div className="w-full flex justify-between items-center">
+              <div />
+              <MalaBeadsIcon className="h-12 w-12 text-primary mb-2" />
+              <Button variant="ghost" size="sm" onClick={handleSignOut}>Sign Out</Button>
+            </div>
             <h1 className="font-headline text-4xl font-bold text-foreground">
               Naam Jaap Sadhana
             </h1>
             <p className="text-muted-foreground mt-1">
-              Your modern tool for sacred chanting.
+              Welcome, {user.email}!
             </p>
         </header>
 
