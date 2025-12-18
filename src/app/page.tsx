@@ -4,8 +4,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import TallyCounter from "@/components/TallyCounter";
 import ChantController from "@/components/ChantController";
 import AudioStyleSelector from "@/components/AudioStyleSelector";
+import UserProfile from "@/components/UserProfile";
 import { MalaBeadsIcon } from "@/lib/icons";
 import { Separator } from "@/components/ui/separator";
+import { useUser, useFirebase } from "@/firebase";
+import { useRouter } from "next/navigation";
+import { collection, addDoc } from "firebase/firestore";
+import { Button } from "@/components/ui/button";
 
 const MALA_COUNT = 108;
 
@@ -24,9 +29,21 @@ export default function Home() {
   const [voiceName, setVoiceName] = useState<string>();
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
+  
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+
+  const { user, isUserLoading } = useUser();
+  const { firestore } = useFirebase();
+  const router = useRouter();
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, isUserLoading, router]);
 
   useEffect(() => {
     audioRef.current = new Audio();
@@ -73,8 +90,11 @@ export default function Home() {
     },
     [voiceName, voices, isChanting, mode, audioSource, customAudioUrl]
   );
-  
+
   const handleIncrement = useCallback(() => {
+    if (sessionStartTime === null) {
+      setSessionStartTime(new Date());
+    }
     setCount((prevCount) => {
       const newCount = prevCount + 1;
       if (newCount >= MALA_COUNT) {
@@ -85,7 +105,36 @@ export default function Home() {
       }
       return newCount;
     });
-  }, []);
+  }, [sessionStartTime]);
+
+  const saveSession = useCallback(async () => {
+    if (!user || !firestore || sessionStartTime === null || (malas === 0 && count === 0)) {
+      return;
+    }
+
+    const sessionData = {
+      userId: user.uid,
+      startTime: sessionStartTime.toISOString(),
+      endTime: new Date().toISOString(),
+      totalCount: malas * MALA_COUNT + count,
+      malaCount: malas,
+      chantText: chantText,
+      audioStyle: audioSource,
+    };
+
+    try {
+      const collectionRef = collection(firestore, `users/${user.uid}/naamJaapSessions`);
+      await addDoc(collectionRef, sessionData);
+    } catch (error) {
+      console.error("Error saving session:", error);
+    }
+
+    // Reset state after saving
+    setCount(0);
+    setMalas(0);
+    setSessionStartTime(null);
+  }, [user, firestore, sessionStartTime, malas, count, chantText, audioSource]);
+
 
   useEffect(() => {
     if (mode === "auto" && isChanting) {
@@ -108,6 +157,20 @@ export default function Home() {
     };
   }, [isChanting, mode, chantText, chantSpeed, handleIncrement, speak]);
 
+  useEffect(() => {
+    // This effect handles saving when component unmounts or before refresh
+    const handleBeforeUnload = () => {
+      saveSession();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      saveSession();
+    };
+  }, [saveSession]);
+
   const handleManualTap = () => {
     if (mode === "manual") {
       handleIncrement();
@@ -120,8 +183,17 @@ export default function Home() {
     }
   };
   
+  if (isUserLoading || !user) {
+    return (
+      <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+        <MalaBeadsIcon className="h-16 w-16 text-primary animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-start bg-background p-4 sm:p-6 md:p-8">
+      <UserProfile />
       <div className="w-full max-w-md mx-auto">
         <header className="flex flex-col items-center justify-center my-6 text-center">
             <MalaBeadsIcon className="h-12 w-12 text-primary mb-2" />
@@ -140,7 +212,10 @@ export default function Home() {
         <ChantController
           mode={mode}
           setMode={(newMode) => {
-            setIsChanting(false);
+            if (mode !== newMode) {
+              saveSession();
+              setIsChanting(false);
+            }
             setMode(newMode);
           }}
           onManualTap={handleManualTap}
