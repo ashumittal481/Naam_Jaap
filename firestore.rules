@@ -1,0 +1,29 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if a user is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if the requesting user is the owner of the document
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Rules for the 'users' collection
+    match /users/{userId} {
+      // Allow a user to read, update, and delete their own document
+      allow read, update, delete: if isOwner(userId);
+      // Allow a user to create their own document
+      allow create: if isOwner(userId);
+
+      // Rules for the 'daily_stats' subcollection
+      match /daily_stats/{statId} {
+        // Allow a user to perform all actions on their own daily stats
+        allow read, write: if isOwner(userId);
+      }
+    }
+  }
+}
