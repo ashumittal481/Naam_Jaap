@@ -9,8 +9,6 @@ import {
   transcribeAudio,
   TranscribeAudioInput,
 } from "@/ai/flows/transcribe-audio-flow";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
 
 export async function getCustomVoice(input: CustomizeChantAudioStyleInput): Promise<{ success: true, data: CustomizeChantAudioStyleOutput } | { success: false, error: string }> {
   try {
@@ -48,24 +46,4 @@ export interface DailyStat {
   id: string;
   date: string;
   malaCount: number;
-}
-
-export async function getDailyStats(userId: string): Promise<{ success: true, data: DailyStat[] } | { success: false, error: string }> {
-    try {
-        const statsRef = collection(db, `users/${userId}/daily_stats`);
-        const q = query(statsRef, orderBy("date", "desc"));
-        const querySnapshot = await getDocs(q);
-        const stats: DailyStat[] = [];
-        querySnapshot.forEach((doc) => {
-            stats.push({ id: doc.id, ...doc.data() } as DailyStat);
-        });
-        return { success: true, data: stats };
-    } catch (error) {
-        console.error("Error in getDailyStats server action:", error);
-        let errorMessage = "An unknown error occurred.";
-        if (error instanceof Error) {
-            errorMessage = error.message;
-        }
-        return { success: false, error: `Failed to fetch daily stats: ${errorMessage}` };
-    }
 }

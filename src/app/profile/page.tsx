@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { getDailyStats, DailyStat } from "@/app/actions";
+import type { DailyStat } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Loader, BarChart3, ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,6 +11,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 
 export default function ProfilePage() {
@@ -29,19 +31,27 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user) {
       setIsLoading(true);
-      getDailyStats(user.uid)
-        .then((response) => {
-          if (response.success) {
-            setStats(response.data);
-          } else {
-            toast({
-              variant: "destructive",
-              title: "Error",
-              description: response.error,
-            });
-          }
-        })
-        .finally(() => setIsLoading(false));
+      const statsRef = collection(db, `users/${user.uid}/daily_stats`);
+      const q = query(statsRef, orderBy("date", "desc"));
+      
+      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const statsData: DailyStat[] = [];
+        querySnapshot.forEach((doc) => {
+          statsData.push({ id: doc.id, ...doc.data() } as DailyStat);
+        });
+        setStats(statsData);
+        setIsLoading(false);
+      }, (error) => {
+        console.error("Error fetching daily stats:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch your progress data. Please try again later.",
+        });
+        setIsLoading(false);
+      });
+
+      return () => unsubscribe();
     }
   }, [user, toast]);
   
