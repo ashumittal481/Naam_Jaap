@@ -3,5 +3,6 @@
   publish = ".next"
 
 [dev]
-  framework = "#nextjs"
+  framework = "next"
   port = 3000
+  targetPort = 3000
