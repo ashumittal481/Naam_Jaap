@@ -13,13 +13,19 @@ service cloud.firestore {
 
     // Rules for the 'users' collection
     match /users/{userId} {
-      // Allows user to manage their profile document
-      allow read, write: if isOwner(userId);
+      // A user can read their own document.
+      allow read: if isOwner(userId);
+      // A new user can create their own document.
+      allow create: if isOwner(userId);
+      // An existing user can update their own document.
+      allow update: if isOwner(userId);
+      // Users cannot delete their own documents (for data integrity).
+      allow delete: if false;
+
 
       // Rules for the 'daily_stats' subcollection
       match /daily_stats/{statId} {
-        // 'read' allows both 'get' (single doc) and 'list' (queries)
-        // 'write' allows 'create', 'update', and 'delete'
+        // A user can read and write to their own daily_stats.
         allow read, write: if isOwner(userId);
       }
     }
