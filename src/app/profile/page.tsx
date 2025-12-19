@@ -32,7 +32,7 @@ export default function ProfilePage() {
     if (user) {
       setIsLoading(true);
       const statsRef = collection(db, `users/${user.uid}/daily_stats`);
-      const q = query(statsRef, orderBy("date", "desc"));
+      const q = query(statsRef);
       
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const statsData: DailyStat[] = [];
