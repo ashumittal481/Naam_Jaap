@@ -1,0 +1,4 @@
+[dev]
+  command = "npm run dev"
+  port = 9002
+  publish = ".next"
