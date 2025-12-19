@@ -9,7 +9,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -61,11 +62,21 @@ export default function LoginPage() {
         toast({ title: "Login Successful!" });
         router.push("/");
       } else {
-        await createUserWithEmailAndPassword(
+        const userCredential = await createUserWithEmailAndPassword(
           auth,
           values.email,
           values.password
         );
+        const user = userCredential.user;
+        
+        // Save user data to Firestore
+        await setDoc(doc(db, "users", user.uid), {
+          uid: user.uid,
+          email: user.email,
+          count: 0,
+          malas: 0,
+        });
+
         toast({ title: "Registration Successful! Please log in." });
         setActiveTab("login"); // Switch to login tab after registration
       }
