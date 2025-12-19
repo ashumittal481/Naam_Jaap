@@ -10,38 +10,36 @@ export const defaultChants: DefaultChant[] = [
     {
         id: 'radha-radha',
         text: 'राधा राधा',
-        description: 'A soothing female voice.',
-        voiceName: 'hi-IN-Wavenet-A',
+        description: 'Deep, calm male voice.',
+        voiceName: 'hi-IN-Wavenet-D',
         lang: 'hi-IN',
     },
     {
         id: 'om-namah-shivaye',
         text: 'ॐ नमः शिवाय',
-        description: 'A deep male voice.',
+        description: 'Deep male voice.',
         voiceName: 'hi-IN-Wavenet-B',
         lang: 'hi-IN',
     },
     {
         id: 'hare-krishna',
         text: 'हरे कृष्णा',
-        description: 'A gentle female voice.',
-        voiceName: 'hi-IN-Wavenet-C',
+        description: 'Gentle, calm male voice.',
+        voiceName: 'hi-IN-Wavenet-D',
         lang: 'hi-IN',
     },
     {
         id: 'jai-shri-ram',
         text: 'जय श्री राम',
-        description: 'A powerful male voice.',
-        voiceName: 'hi-IN-Wavenet-D',
+        description: 'Powerful male voice.',
+        voiceName: 'hi-IN-Wavenet-B',
         lang: 'hi-IN',
     },
     {
         id: 'waheguru',
         text: 'वाहेगुरु',
-        description: 'A clear female voice.',
-        voiceName: 'hi-IN-Wavenet-A', // Re-using voice A for variety
+        description: 'Clear, resonant male voice.',
+        voiceName: 'hi-IN-Wavenet-D',
         lang: 'hi-IN',
     },
 ];
-
-    
