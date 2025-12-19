@@ -4,4 +4,4 @@
 
 [dev]
   framework = "#nextjs"
-  port = 3000s
+  port = 3000
