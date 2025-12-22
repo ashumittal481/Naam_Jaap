@@ -2,12 +2,10 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import TallyCounter from "@/components/TallyCounter";
 import ChantController from "@/components/ChantController";
 import AudioStyleSelector from "@/components/AudioStyleSelector";
 import { MalaBeadsIcon } from "@/lib/icons";
 import { Separator } from "@/components/ui/separator";
-import ChantAnimator from "@/components/ChantAnimator";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { doc, onSnapshot, setDoc, getDoc, collection, updateDoc, increment } from "firebase/firestore";
@@ -40,7 +38,6 @@ export default function Home() {
   const [chantAnimationKey, setChantAnimationKey] = useState(0);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isSavingRef = useRef(false);
 
@@ -257,14 +254,11 @@ export default function Home() {
             </p>
         </header>
 
-        <div className="relative mb-6">
-        <TallyCounter count={count} malas={malas} isCelebrating={isCelebrating} />
-        <ChantAnimator text={chantText} animationKey={chantAnimationKey} />
-        </div>
-        
-        {/* <Separator className="my-8" /> */}
-        
         <ChantController
+          count={count}
+          malas={malas}
+          isCelebrating={isCelebrating}
+          chantAnimationKey={chantAnimationKey}
           mode={mode}
           setMode={(newMode) => {
             setIsChanting(false);

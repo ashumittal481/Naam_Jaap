@@ -1,3 +1,4 @@
+
 "use client";
 
 import { cn } from "@/lib/utils";
@@ -16,11 +17,11 @@ const ChantAnimator = ({ text, animationKey }: ChantAnimatorProps) => {
     <div
       key={animationKey}
       className={cn(
-        "pointer-events-none absolute inset-0 flex  justify-center",
+        "pointer-events-none absolute inset-0 flex items-center justify-center p-4",
         "animate-chant-up"
       )}
     >
-      <span className="text-4xl font-bold text-accent opacity-80" style={{ textShadow: '0 0 10px hsl(var(--accent) / 0.5)' }}>
+      <span className="text-4xl font-bold text-center text-accent opacity-80 break-words" style={{ textShadow: '0 0 10px hsl(var(--accent) / 0.5)' }}>
         {text}
       </span>
     </div>
