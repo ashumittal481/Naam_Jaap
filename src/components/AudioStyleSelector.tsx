@@ -35,6 +35,7 @@ import type { AudioSource } from "@/app/page";
 import { Label } from "./ui/label";
 import { cn } from "@/lib/utils";
 import { defaultChants, DefaultChant } from "@/lib/default-chants";
+import { Loader } from "lucide-react";
 
 interface AudioStyleSelectorProps {
   setVoiceName: (voiceName: string) => void;
@@ -295,6 +296,14 @@ const RecordVoicePanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
   }
 
   const handleStartRecording = async () => {
+    if (typeof navigator.mediaDevices?.getUserMedia !== 'function') {
+        toast({
+            variant: "destructive",
+            title: "Unsupported Feature",
+            description: "Audio recording is not supported on this browser or device.",
+        });
+        return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorderRef.current = new MediaRecorder(stream);
@@ -316,9 +325,22 @@ const RecordVoicePanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
       mediaRecorderRef.current.start();
       setIsRecording(true);
       toast({ title: "Recording started..." });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error starting recording:", err);
-      toast({ variant: "destructive", title: "Recording Error", description: "Could not start recording. Please ensure microphone permissions are granted." });
+      if (err.name === 'NotAllowedError') {
+        toast({
+          variant: "destructive",
+          title: "Permission Denied",
+          description: "Microphone access was denied. Please check your browser/device settings to allow microphone access for this app.",
+          duration: 9000,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Recording Error",
+          description: `Could not start recording: ${err.message}`,
+        });
+      }
     }
   };
 
@@ -383,6 +405,7 @@ const UploadAudioPanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
     const [fileName, setFileName] = useState<string | null>(null);
     const [isTranscribing, setIsTranscribing] = useState(false);
     const { toast } = useToast();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleTranscription = async (audioBlob: Blob) => {
         setIsTranscribing(true);
@@ -437,8 +460,8 @@ const UploadAudioPanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
                 </div>
             </div>
             <div className="space-y-2">
-                <label htmlFor="audio-upload" className={cn(
-                    "w-full border-2 border-dashed border-muted-foreground/50 rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50",
+                 <Label htmlFor="audio-upload" className={cn(
+                    "w-full border-2 border-dashed border-muted-foreground/50 rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors",
                     fileName && "border-primary/50",
                     (isTranscribing) && "pointer-events-none opacity-50"
                 )}>
@@ -448,9 +471,9 @@ const UploadAudioPanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
                          <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                     )}
                    
-                    <span>{isTranscribing ? 'Transcribing...' : (fileName || "Click or drag to upload")}</span>
-                </label>
-                <input id="audio-upload" type="file" accept="audio/*" onChange={handleFileChange} className="hidden" disabled={isTranscribing} />
+                    <span className="text-sm text-muted-foreground">{isTranscribing ? 'Transcribing...' : (fileName || "Click or drag to upload")}</span>
+                </Label>
+                <Input id="audio-upload" type="file" accept="audio/*" onChange={handleFileChange} className="hidden" disabled={isTranscribing} ref={fileInputRef}/>
             </div>
              {fileName && !isTranscribing && (
                 <Alert>
@@ -464,5 +487,3 @@ const UploadAudioPanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
 
 
 export default AudioStyleSelector;
-
-    

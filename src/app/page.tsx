@@ -44,7 +44,7 @@ export default function Home() {
   const isSavingRef = useRef(false);
 
   // --- BRIDGE DETECTION ---
-  const isReactNative = typeof window !== 'undefined' && window.ReactNativeWebView;
+  const isReactNative = typeof window !== 'undefined' && (window as any).ReactNativeWebView;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -98,19 +98,21 @@ export default function Home() {
   useEffect(() => {
     audioRef.current = new Audio();
     const loadVoices = () => {
-      const availableVoices = window.speechSynthesis.getVoices();
-      if (availableVoices.length > 0) {
-        setVoices(availableVoices);
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        const availableVoices = window.speechSynthesis.getVoices();
+        if (availableVoices.length > 0) {
+          setVoices(availableVoices);
+        }
       }
     };
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.onvoiceschanged = loadVoices;
       loadVoices();
-
     }
+
     return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.onvoiceschanged = null;
       }
     };
@@ -129,10 +131,12 @@ export default function Home() {
 
     // 2. React Native Bridge (Mobile App)
     if (isReactNative) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify({
         type: 'SPEAK',
-        text: text,
-        language: voiceLang || 'hi-IN'
+        payload: {
+          text: text,
+          language: voiceLang || 'hi-IN'
+        }
       }));
       return;
     }
