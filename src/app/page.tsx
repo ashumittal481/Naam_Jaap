@@ -40,6 +40,7 @@ export default function Home() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isSavingRef = useRef(false);
+  const lastMalaIncrementTime = useRef<number>(0);
 
   // --- BRIDGE DETECTION ---
   const isReactNative = typeof window !== 'undefined' && (window as any).ReactNativeWebView;
@@ -81,6 +82,14 @@ export default function Home() {
 
   const updateDailyMalaCount = useCallback(async () => {
     if (!user) return;
+
+    // Debounce to prevent double increments in React Strict Mode
+    const now = Date.now();
+    if (now - lastMalaIncrementTime.current < 1000) { // 1 second threshold
+      return;
+    }
+    lastMalaIncrementTime.current = now;
+
     const today = new Date().toISOString().split("T")[0];
     const dailyStatDocRef = doc(db, `users/${user.uid}/daily_stats`, today);
     try {
@@ -192,19 +201,18 @@ export default function Home() {
 
   useEffect(() => {
     let isMounted = true;
-    
+    let chantTimeout: NodeJS.Timeout;
+
     const chantCycle = () => {
         if (!isChanting || mode !== "auto" || !isMounted) return;
 
         speak(chantText, () => {
-            handleIncrement();
-            // A short, fixed delay between chants to avoid them running together
-            const delay = 50; 
-            setTimeout(() => {
-                if (isMounted && isChanting) {
-                    chantCycle();
-                }
-            }, delay);
+            if (isMounted && isChanting) { // Check again before incrementing and scheduling next
+                handleIncrement();
+                // Schedule the next chant. This delay is minimal, as the speaking rate controls the speed.
+                const delay = 50; 
+                chantTimeout = setTimeout(chantCycle, delay);
+            }
         });
     };
 
@@ -214,6 +222,7 @@ export default function Home() {
 
     return () => {
         isMounted = false;
+        clearTimeout(chantTimeout);
         if (typeof window !== 'undefined' && window.speechSynthesis) {
             window.speechSynthesis.cancel();
         }
