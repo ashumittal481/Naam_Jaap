@@ -454,26 +454,32 @@ const RecordVoicePanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
 const UploadAudioPanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: { setCustomAudioUrl: (url: string) => void, setAudioSource: (source: AudioSource) => void, setChantText: (text: string) => void }) => {
     const [fileName, setFileName] = useState<string | null>(null);
     const [isTranscribing, setIsTranscribing] = useState(false);
+    const [transcribedText, setTranscribedText] = useState<string | null>(null);
     const { toast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleTranscription = async (audioBlob: Blob) => {
         setIsTranscribing(true);
+        setTranscribedText(null);
         setChantText("Transcribing...");
         try {
             const audioDataUri = await blobToDataURI(audioBlob);
             const response = await getTranscript({ audioDataUri });
             
             if (response.success && response.data) {
-                setChantText(response.data.transcript);
+                const fullText = response.data.transcript;
+                setChantText(fullText);
+                setTranscribedText(fullText);
                 toast({ title: "Transcription successful!", description: "The chant text has been updated." });
             } else {
                  setChantText("Om"); // fallback
+                 setTranscribedText("Om");
                 toast({ variant: "destructive", title: "Transcription Error", description: response.error || "Could not transcribe audio." });
             }
         } catch (error) {
             // console.error("Transcription error:", error);
             setChantText("Untrack word"); // fallback
+            setTranscribedText("Untrack word");
             // toast({ variant: "destructive", title: "Transcription Error", description: "An unexpected error occurred." });
         } finally {
             setIsTranscribing(false);
@@ -525,10 +531,12 @@ const UploadAudioPanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
                 </Label>
                 <Input id="audio-upload" type="file" accept="audio/*" onChange={handleFileChange} className="hidden" disabled={isTranscribing} ref={fileInputRef}/>
             </div>
-             {fileName && !isTranscribing && (
+             {transcribedText && !isTranscribing && (
                 <Alert>
-                    <AlertTitle>File Selected</AlertTitle>
-                    <AlertDescription>{fileName}</AlertDescription>
+                    <AlertTitle>File & Transcription Ready</AlertTitle>
+                    <AlertDescription className="truncate">
+                        {transcribedText.length > 50 ? `${transcribedText.substring(0, 50)}...` : transcribedText}
+                    </AlertDescription>
                 </Alert>
             )}
         </div>
@@ -537,3 +545,5 @@ const UploadAudioPanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
 
 
 export default AudioStyleSelector;
+
+    
