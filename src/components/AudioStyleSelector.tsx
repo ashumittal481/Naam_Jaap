@@ -48,6 +48,7 @@ interface AudioStyleSelectorProps {
   setAudioSource: (source: AudioSource) => void;
   setCustomAudioUrl: (url: string | null) => void;
   isChanting: boolean;
+  chantText: string;
   setChantText: (text: string) => void;
   chantSpeed: number;
   setChantSpeed: (speed: number) => void;
@@ -66,6 +67,7 @@ const AudioStyleSelector = ({
   setAudioSource,
   setCustomAudioUrl,
   isChanting,
+  chantText,
   setChantText,
   chantSpeed,
   setChantSpeed

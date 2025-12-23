@@ -374,6 +374,7 @@ export default function Home() {
           setAudioSource={setAudioSource}
           setCustomAudioUrl={setCustomAudioUrl}
           isChanting={isChanting}
+          chantText={chantText}
           setChantText={setChantText}
           chantSpeed={chantSpeed}
           setChantSpeed={setChantSpeed}
