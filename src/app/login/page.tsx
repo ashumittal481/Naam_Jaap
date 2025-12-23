@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -30,7 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { MalaBeadsIcon } from "@/lib/icons";
+import { PeacockIcon } from "@/lib/icons";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
@@ -96,9 +97,9 @@ export default function LoginPage() {
     <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm">
         <header className="flex flex-col items-center justify-center mb-6 text-center">
-            <MalaBeadsIcon className="h-12 w-12 text-primary mb-2" />
+            <PeacockIcon className="h-12 w-12 text-primary mb-2" />
             <h1 className="font-headline text-4xl font-bold text-foreground">
-              Naam Jaap Sadhana
+              Radha Naam Jap
             </h1>
             <p className="text-muted-foreground mt-1">
               Your modern tool for sacred chanting.
@@ -175,8 +176,7 @@ export default function LoginPage() {
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
+                          <FormLabel>Email</FormLabel>                          <FormControl>
                             <Input
                               placeholder="you@example.com"
                               {...field}
@@ -218,3 +218,5 @@ export default function LoginPage() {
     </main>
   );
 }
+
+    

@@ -4,15 +4,18 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import ChantController from "@/components/ChantController";
 import AudioStyleSelector from "@/components/AudioStyleSelector";
-import { MalaBeadsIcon } from "@/lib/icons";
+import { LogOut, Settings, BarChart, Calendar, Repeat, Clock, HelpCircle, User as UserIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
-import { doc, onSnapshot, setDoc, getDoc, collection, updateDoc, increment } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc, collection, updateDoc, increment, query, where, getDocs, Timestamp } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
-import { Loader, User as UserIcon } from "lucide-react";
+import { Loader } from "lucide-react";
 import Link from "next/link";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { PeacockIcon } from "@/lib/icons";
 
 const MALA_COUNT = 108;
 export type AudioSource = "ai" | "custom";
@@ -23,6 +26,7 @@ export default function Home() {
   
   const [count, setCount] = useState(0);
   const [malas, setMalas] = useState(0);
+  const [todaysJapa, setTodaysJapa] = useState(0);
   const [isCelebrating, setIsCelebrating] = useState(false);
   const [mode, setMode] = useState<"manual" | "auto">("manual");
   const [isChanting, setIsChanting] = useState(false);
@@ -42,7 +46,9 @@ export default function Home() {
   const isSavingRef = useRef(false);
   const lastMalaIncrementTime = useRef<number>(0);
 
-  // --- BRIDGE DETECTION ---
+  const [sessionTime, setSessionTime] = useState(0);
+  const sessionTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const isReactNative = typeof window !== 'undefined' && (window as any).ReactNativeWebView;
 
   useEffect(() => {
@@ -54,7 +60,7 @@ export default function Home() {
   useEffect(() => {
     if (user && !isDataLoaded) {
       const userDocRef = doc(db, "users", user.uid);
-      const unsubscribe = onSnapshot(userDocRef, (doc) => {
+      const unsubscribeUser = onSnapshot(userDocRef, (doc) => {
         if (doc.exists()) {
           const data = doc.data();
           setCount(data.count || 0);
@@ -62,7 +68,21 @@ export default function Home() {
         }
         setIsDataLoaded(true);
       });
-      return () => unsubscribe();
+
+      const today = new Date().toISOString().split("T")[0];
+      const dailyStatDocRef = doc(db, `users/${user.uid}/daily_stats`, today);
+      const unsubscribeStats = onSnapshot(dailyStatDocRef, (doc) => {
+          if (doc.exists()) {
+              setTodaysJapa(doc.data().malaCount * MALA_COUNT);
+          } else {
+              setTodaysJapa(0);
+          }
+      });
+
+      return () => {
+          unsubscribeUser();
+          unsubscribeStats();
+      };
     }
   }, [user, isDataLoaded]);
 
@@ -82,10 +102,8 @@ export default function Home() {
 
   const updateDailyMalaCount = useCallback(async () => {
     if (!user) return;
-
-    // Debounce to prevent double increments in React Strict Mode
     const now = Date.now();
-    if (now - lastMalaIncrementTime.current < 1000) { // 1 second threshold
+    if (now - lastMalaIncrementTime.current < 1000) {
       return;
     }
     lastMalaIncrementTime.current = now;
@@ -99,6 +117,7 @@ export default function Home() {
       } else {
         await setDoc(dailyStatDocRef, { malaCount: 1, date: today });
       }
+      setTodaysJapa(prev => prev + MALA_COUNT);
     } catch (error) { console.error(error); }
   }, [user]);
 
@@ -125,13 +144,35 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    if (isChanting) {
+      sessionTimerRef.current = setInterval(() => {
+        setSessionTime(prevTime => prevTime + 1);
+      }, 1000);
+    } else {
+      if (sessionTimerRef.current) {
+        clearInterval(sessionTimerRef.current);
+      }
+    }
+    return () => {
+      if (sessionTimerRef.current) {
+        clearInterval(sessionTimerRef.current);
+      }
+    };
+  }, [isChanting]);
+
+  const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+    const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+    const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  };
+
   const speak = useCallback((text: string, onEnd?: () => void) => {
     if (!isChanting && mode !== "auto") {
         onEnd?.();
         return;
     }
-
-    // 1. Custom Audio
     if (audioSource === 'custom' && customAudioUrl && audioRef.current) {
         const audio = audioRef.current;
         const handleAudioEnd = () => {
@@ -140,43 +181,30 @@ export default function Home() {
         };
         audio.addEventListener('ended', handleAudioEnd);
         audio.src = customAudioUrl;
-        // Map slider (0-100) to playback rate (e.g., 0.5x to 2.0x)
         audio.playbackRate = 0.5 + (chantSpeed / 100) * 1.5;
         audio.play().catch(console.error);
         return;
     }
 
-    // 2. React Native Bridge (Mobile App)
     if (isReactNative) {
       (window as any).ReactNativeWebView.postMessage(JSON.stringify({
         type: 'SPEAK',
-        payload: {
-          text: text,
-          language: voiceLang || 'hi-IN'
-        }
+        payload: { text: text, language: voiceLang || 'hi-IN' }
       }));
-       // Cannot reliably get onEnd callback from native, so use a timeout
-       setTimeout(() => onEnd?.(), 1000); // Adjust timeout as needed
+       setTimeout(() => onEnd?.(), 1000);
       return;
     }
 
-    // 3. Web Speech API (PWA/Browser)
     if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis) {
-      window.speechSynthesis.cancel(); // Clear queue for immediate chant
+      window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = voiceLang;
-      // Map slider (0-100) to speech rate (0.5 to 2.0)
       utterance.rate = 0.5 + (chantSpeed / 100) * 1.5; 
       const selectedVoice = voices.find((v) => v.name === voiceName);
       if (selectedVoice) utterance.voice = selectedVoice;
-      
-      utterance.onend = () => {
-        onEnd?.();
-      };
-      
+      utterance.onend = () => onEnd?.();
       window.speechSynthesis.speak(utterance);
     } else {
-        // Fallback if no speech synthesis is available
         onEnd?.();
     }
   }, [voiceName, voiceLang, voices, isChanting, mode, audioSource, customAudioUrl, isReactNative, chantSpeed]);
@@ -207,9 +235,8 @@ export default function Home() {
         if (!isChanting || mode !== "auto" || !isMounted) return;
 
         speak(chantText, () => {
-            if (isMounted && isChanting) { // Check again before incrementing and scheduling next
+            if (isMounted && isChanting) {
                 handleIncrement();
-                // Schedule the next chant. This delay is minimal, as the speaking rate controls the speed.
                 const delay = 50; 
                 chantTimeout = setTimeout(chantCycle, delay);
             }
@@ -234,7 +261,7 @@ export default function Home() {
 }, [isChanting, mode, chantText, speak, handleIncrement]);
 
 
-  const handleManualTap = () => { if (mode === "manual") { speak(chantText); handleIncrement(); } };
+  const handleManualTap = () => { if (mode === "manual") { setIsChanting(true); speak(chantText, () => setIsChanting(false)); handleIncrement(); } };
   const handleAutoToggle = () => { if (mode === "auto") setIsChanting((prev) => !prev); };
   const handleSignOut = async () => { await auth.signOut(); router.push("/login"); };
 
@@ -246,44 +273,99 @@ export default function Home() {
     );
   }
 
+  const totalJapa = malas * MALA_COUNT + count;
+  const progress = (count / MALA_COUNT) * 100;
+
   return (
-    <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+    <main className="flex min-h-screen w-full flex-col items-center justify-start bg-background p-4">
       <div className="w-full max-w-md mx-auto">
-        <header className="flex flex-col items-center mb-6">
-          <div className="w-full flex justify-between items-center mb-4">
-            <Button variant="ghost" size="icon" asChild><Link href="/profile"><UserIcon /></Link></Button>
-            <MalaBeadsIcon className="h-12 w-12 text-primary" />
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>Sign Out</Button>
-          </div>
-            <h1 className="font-headline text-4xl font-bold text-foreground">
-              Naam Jaap
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Welcome, {user.email}!
-            </p>
+        <header className="flex justify-between items-center w-full mb-4">
+            <div className="flex items-center gap-2">
+                <PeacockIcon className="h-8 w-8 text-primary" />
+                <h1 className="font-headline text-xl font-bold text-foreground">Radha Naam Jap</h1>
+            </div>
+            <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" asChild><Link href="/profile"><UserIcon className="h-5 w-5"/></Link></Button>
+                <Button variant="ghost" size="icon" onClick={handleSignOut}><LogOut className="h-5 w-5"/></Button>
+            </div>
         </header>
 
-        <ChantController
-          count={count}
-          malas={malas}
-          isCelebrating={isCelebrating}
-          chantAnimationKey={chantAnimationKey}
-          mode={mode}
-          setMode={(newMode) => {
-            setIsChanting(false);
-            setMode(newMode);
-          }}
-          onManualTap={handleManualTap}
-          onAutoToggle={handleAutoToggle}
-          isAutoChanting={isChanting}
-          chantText={chantText}
-          setChantText={setChantText}
-          chantSpeed={chantSpeed}
-          setChantSpeed={setChantSpeed}
-          audioSource={audioSource}
-        />
+        <Card className="w-full shadow-lg mb-6">
+            <CardContent className="p-4 flex flex-col items-center">
+                <div className="flex items-center gap-2 text-lg font-semibold text-primary mb-2">
+                    <Clock className="h-5 w-5" />
+                    <span>{formatTime(sessionTime)}</span>
+                </div>
+
+                <div className="relative w-48 h-48 flex items-center justify-center my-4">
+                    <svg className="absolute inset-0" viewBox="0 0 100 100">
+                        <circle className="text-secondary/20" strokeWidth="8" stroke="currentColor" fill="transparent" r="42" cx="50" cy="50" />
+                        <circle
+                            className="text-primary"
+                            strokeWidth="8"
+                            strokeDasharray={2 * Math.PI * 42}
+                            strokeDashoffset={2 * Math.PI * 42 * (1 - progress / 100)}
+                            strokeLinecap="round"
+                            stroke="currentColor"
+                            fill="transparent"
+                            r="42"
+                            cx="50"
+                            cy="50"
+                            style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%', transition: 'stroke-dashoffset 0.3s ease' }}
+                        />
+                    </svg>
+                     <div 
+                        key={chantAnimationKey}
+                        className="absolute inset-0 flex items-center justify-center animate-chant-up"
+                    >
+                        <span className="text-2xl font-bold text-center text-accent/80 break-words" style={{ textShadow: '0 0 8px hsl(var(--accent) / 0.4)' }}>
+                            {chantText}
+                        </span>
+                    </div>
+                    <div className="relative text-center">
+                         <div className="text-6xl font-bold text-foreground">{count}</div>
+                    </div>
+                </div>
+
+                <div className="w-full px-4">
+                     <ChantController
+                        mode={mode}
+                        setMode={(newMode) => {
+                            setIsChanting(false);
+                            setMode(newMode);
+                        }}
+                        onManualTap={handleManualTap}
+                        onAutoToggle={handleAutoToggle}
+                        isAutoChanting={isChanting}
+                    />
+                </div>
+            </CardContent>
+        </Card>
         
-        <Separator className="my-8" />
+        <div className="grid grid-cols-3 gap-4 w-full mb-6">
+            <Card className="shadow-md">
+                <CardContent className="p-3 flex flex-col items-center justify-center text-center">
+                    <Repeat className="h-6 w-6 mb-1 text-primary"/>
+                    <p className="text-sm font-semibold">Malas</p>
+                    <p className="text-2xl font-bold">{malas}</p>
+                </CardContent>
+            </Card>
+            <Card className="shadow-md">
+                <CardContent className="p-3 flex flex-col items-center justify-center text-center">
+                    <BarChart className="h-6 w-6 mb-1 text-primary"/>
+                    <p className="text-sm font-semibold">Total Japa</p>
+                    <p className="text-2xl font-bold">{totalJapa}</p>
+                </CardContent>
+            </Card>
+            <Card className="shadow-md">
+                <CardContent className="p-3 flex flex-col items-center justify-center text-center">
+                    <Calendar className="h-6 w-6 mb-1 text-primary"/>
+                    <p className="text-sm font-semibold">Today's Japa</p>
+                    <p className="text-2xl font-bold">{todaysJapa}</p>
+                </CardContent>
+            </Card>
+        </div>
+
 
         <AudioStyleSelector 
           setVoiceName={setVoiceName}
@@ -292,8 +374,12 @@ export default function Home() {
           setCustomAudioUrl={setCustomAudioUrl}
           isChanting={isChanting}
           setChantText={setChantText}
+          chantSpeed={chantSpeed}
+          setChantSpeed={setChantSpeed}
         />
       </div>
     </main>
   );
 }
+
+    

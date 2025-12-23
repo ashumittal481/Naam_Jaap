@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef } from "react";
@@ -5,12 +6,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
-  Settings2,
   Wand2,
   Mic,
   Upload,
   Square,
   Sparkles,
+  ChevronDown,
+  Music,
 } from "lucide-react";
 import {
   Card,
@@ -36,6 +38,8 @@ import { Label } from "./ui/label";
 import { cn } from "@/lib/utils";
 import { defaultChants, DefaultChant } from "@/lib/default-chants";
 import { Loader } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import { Slider } from "./ui/slider";
 
 interface AudioStyleSelectorProps {
   setVoiceName: (voiceName: string) => void;
@@ -44,6 +48,8 @@ interface AudioStyleSelectorProps {
   setCustomAudioUrl: (url: string | null) => void;
   isChanting: boolean;
   setChantText: (text: string) => void;
+  chantSpeed: number;
+  setChantSpeed: (speed: number) => void;
 }
 
 const formSchema = z.object({
@@ -58,7 +64,9 @@ const AudioStyleSelector = ({
   setAudioSource,
   setCustomAudioUrl,
   isChanting,
-  setChantText
+  setChantText,
+  chantSpeed,
+  setChantSpeed
 }: AudioStyleSelectorProps) => {
   const handleTabChange = (value: string) => {
     const sourceTab = value as 'ai' | 'record' | 'upload' | 'defaults';
@@ -68,32 +76,71 @@ const AudioStyleSelector = ({
         setAudioSource('custom');
     }
   }
+  const isCustomAudio = audioSource === 'custom';
 
   return (
-    <Card className="shadow-md">
-      <CardContent className="p-6">
-        <Tabs defaultValue="defaults" className="w-full" onValueChange={handleTabChange}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="defaults" disabled={isChanting}><Sparkles className="mr-2 h-4 w-4" />Defaults</TabsTrigger>
-            {/* <TabsTrigger value="ai" disabled={isChanting}><Wand2 className="mr-2 h-4 w-4" />AI Voice</TabsTrigger> */}
-            <TabsTrigger value="record" disabled={isChanting}><Mic className="mr-2 h-4 w-4" />Record</TabsTrigger>
-            <TabsTrigger value="upload" disabled={isChanting}><Upload className="mr-2 h-4 w-4" />Upload</TabsTrigger>
-          </TabsList>
-          <TabsContent value="defaults" className="mt-6">
-            <DefaultChantsPanel setChantText={setChantText} setVoiceName={setVoiceName} setVoiceLang={setVoiceLang} />
-          </TabsContent>
-          <TabsContent value="ai" className="mt-6">
-            <AIGeneratorPanel setVoiceName={setVoiceName} setVoiceLang={setVoiceLang} setAudioSource={setAudioSource} />
-          </TabsContent>
-          <TabsContent value="record" className="mt-6">
-            <RecordVoicePanel setCustomAudioUrl={setCustomAudioUrl} setAudioSource={setAudioSource} setChantText={setChantText} />
-          </TabsContent>
-          <TabsContent value="upload" className="mt-6">
-            <UploadAudioPanel setCustomAudioUrl={setCustomAudioUrl} setAudioSource={setAudioSource} setChantText={setChantText} />
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+    <Collapsible className="w-full">
+        <CollapsibleTrigger asChild>
+            <Button variant="outline" className="w-full justify-between shadow-md">
+                Chant & Audio Settings
+                <ChevronDown className="h-4 w-4" />
+            </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+            <Card className="shadow-md mt-2">
+                <CardContent className="p-6 space-y-6">
+                    <div className="space-y-2">
+                        <Label htmlFor="chant-text">Chant Text</Label>
+                        <Input
+                            id="chant-text"
+                            value={chantText}
+                            onChange={(e) => setChantText(e.target.value)}
+                            disabled={isChanting || isCustomAudio}
+                            placeholder={isCustomAudio ? "Plays uploaded/recorded audio" : "e.g. Om"}
+                        />
+                        {isCustomAudio && <p className="text-xs text-muted-foreground">Chant text is based on the audio transcription.</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="chant-speed">Chant Speed</Label>
+                        <Slider
+                            id="chant-speed"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={[chantSpeed]}
+                            onValueChange={(value) => setChantSpeed(value[0])}
+                            disabled={isChanting}
+                        />
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Slower</span>
+                            <span>Faster</span>
+                        </div>
+                    </div>
+                    <Tabs defaultValue="defaults" className="w-full" onValueChange={handleTabChange}>
+                        <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="defaults" disabled={isChanting}><Sparkles className="mr-2 h-4 w-4" />Defaults</TabsTrigger>
+                            <TabsTrigger value="ai" disabled={isChanting}><Wand2 className="mr-2 h-4 w-4" />AI Voice</TabsTrigger>
+                            <TabsTrigger value="record" disabled={isChanting}><Mic className="mr-2 h-4 w-4" />Record</TabsTrigger>
+                            <TabsTrigger value="upload" disabled={isChanting}><Upload className="mr-2 h-4 w-4" />Upload</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="defaults" className="mt-6">
+                            <DefaultChantsPanel setChantText={setChantText} setVoiceName={setVoiceName} setVoiceLang={setVoiceLang} />
+                        </TabsContent>
+                        <TabsContent value="ai" className="mt-6">
+                            <AIGeneratorPanel setVoiceName={setVoiceName} setVoiceLang={setVoiceLang} setAudioSource={setAudioSource} />
+                        </TabsContent>
+                        <TabsContent value="record" className="mt-6">
+                            <RecordVoicePanel setCustomAudioUrl={setCustomAudioUrl} setAudioSource={setAudioSource} setChantText={setChantText} />
+                        </TabsContent>
+                        <TabsContent value="upload" className="mt-6">
+                            <UploadAudioPanel setCustomAudioUrl={setCustomAudioUrl} setAudioSource={setAudioSource} setChantText={setChantText} />
+                        </TabsContent>
+                    </Tabs>
+                </CardContent>
+            </Card>
+        </CollapsibleContent>
+    </Collapsible>
   );
 };
 
@@ -108,13 +155,13 @@ const DefaultChantsPanel = ({ setChantText, setVoiceName, setVoiceLang }: { setC
         setVoiceLang(chant.lang);
         toast({
             title: "Chant Selected!",
-            description: `Now chanting "${chant.text}" with voice ${chant.voiceName}.`,
+            description: `Now chanting "${chant.text}".`,
         });
     };
     
     return (
         <div className="space-y-4">
-            <p className="text-sm text-center text-muted-foreground">Select a pre-configured chant to begin your practice instantly.</p>
+            <p className="text-sm text-center text-muted-foreground">Select a pre-configured chant.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {defaultChants.map((chant) => (
                     <Button key={chant.id} variant="outline" onClick={() => handleSelectChant(chant)} className="justify-start text-left h-auto py-3">
@@ -487,3 +534,5 @@ const UploadAudioPanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
 
 
 export default AudioStyleSelector;
+
+    
