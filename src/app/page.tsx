@@ -353,14 +353,14 @@ export default function Home() {
             <Card className="shadow-md">
                 <CardContent className="p-3 flex flex-col items-center justify-center text-center">
                     <BarChart className="h-6 w-6 mb-1 text-primary"/>
-                    <p className="text-sm font-semibold">Total Japa</p>
+                    <p className="text-sm font-semibold">Total Jaap</p>
                     <p className="text-2xl font-bold">{totalJapa}</p>
                 </CardContent>
             </Card>
             <Card className="shadow-md">
                 <CardContent className="p-3 flex flex-col items-center justify-center text-center">
                     <Calendar className="h-6 w-6 mb-1 text-primary"/>
-                    <p className="text-sm font-semibold">Today's Japa</p>
+                    <p className="text-sm font-semibold">Today's Jaap</p>
                     <p className="text-2xl font-bold">{todaysJapa}</p>
                 </CardContent>
             </Card>
