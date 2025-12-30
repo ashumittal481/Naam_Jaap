@@ -1,4 +1,4 @@
-# **App Name**: Naam Jaap Sadhana
+# **App Name**: Prabhu Milan Naam Jaap
 
 ## Core Features:
 

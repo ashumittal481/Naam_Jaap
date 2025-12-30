@@ -11,7 +11,7 @@ const alegreya = Alegreya({
 });
 
 export const metadata: Metadata = {
-  title: "Naam Jaap Sadhana",
+  title: "Prabhu Milan Naam Jaap",
   description: "A modern app for your chanting practice, designed to enhance your spiritual journey.",
 };
 
