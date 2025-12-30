@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
+const MALA_COUNT = 108;
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
@@ -32,7 +33,7 @@ export default function ProfilePage() {
     if (user) {
       setIsLoading(true);
       const statsRef = collection(db, `users/${user.uid}/daily_stats`);
-      const q = query(statsRef);
+      const q = query(statsRef, orderBy("date", "desc"));
       
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const statsData: DailyStat[] = [];
@@ -68,7 +69,8 @@ export default function ProfilePage() {
     return null; // Should be redirected by the effect
   }
 
-  const totalMalas = stats.reduce((acc, stat) => acc + stat.malaCount, 0);
+  const totalChants = stats.reduce((acc, stat) => acc + (stat.chantCount || 0), 0);
+  const totalMalas = Math.floor(totalChants / MALA_COUNT);
 
   return (
     <main className="flex min-h-screen w-full flex-col items-center bg-background p-4 sm:p-6 md:p-8">
@@ -112,14 +114,14 @@ export default function ProfilePage() {
                         <TableHeader>
                         <TableRow>
                             <TableHead>Date</TableHead>
-                            <TableHead className="text-right">Malas Completed</TableHead>
+                            <TableHead className="text-right">Chants Completed</TableHead>
                         </TableRow>
                         </TableHeader>
                         <TableBody>
                         {stats.map((stat) => (
                             <TableRow key={stat.id}>
                             <TableCell>{new Date(stat.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</TableCell>
-                            <TableCell className="text-right font-bold text-accent">{stat.malaCount}</TableCell>
+                            <TableCell className="text-right font-bold text-accent">{stat.chantCount || 0}</TableCell>
                             </TableRow>
                         ))}
                         </TableBody>
@@ -127,7 +129,7 @@ export default function ProfilePage() {
                 </ScrollArea>
             ) : (
               <p className="text-center text-muted-foreground py-8">
-                You haven&apos;t completed any malas yet. Start chanting to see your progress!
+                You haven&apos;t completed any chants yet. Start chanting to see your progress!
               </p>
             )}
           </CardContent>

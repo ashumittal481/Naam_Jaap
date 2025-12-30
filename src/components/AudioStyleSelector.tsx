@@ -123,9 +123,8 @@ const AudioStyleSelector = ({
                         </div>
                     </div>
                     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                        <TabsList className="grid w-full grid-cols-4">
+                        <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="library" disabled={isChanting}><Sparkles className="mr-2 h-4 w-4" />Library</TabsTrigger>
-                            <TabsTrigger value="ai" disabled={isChanting}><Wand2 className="mr-2 h-4 w-4" />AI Voice</TabsTrigger>
                             <TabsTrigger value="record" disabled={isChanting}><Mic className="mr-2 h-4 w-4" />Record</TabsTrigger>
                             <TabsTrigger value="upload" disabled={isChanting}><Upload className="mr-2 h-4 w-4" />Upload</TabsTrigger>
                         </TabsList>

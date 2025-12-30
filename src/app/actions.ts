@@ -45,5 +45,5 @@ export async function getTranscript(input: TranscribeAudioInput) {
 export interface DailyStat {
   id: string;
   date: string;
-  malaCount: number;
+  chantCount: number;
 }
