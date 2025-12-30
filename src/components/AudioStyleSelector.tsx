@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -42,7 +42,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collap
 import { Slider } from "./ui/slider";
 
 interface AudioStyleSelectorProps {
-  setVoiceName: (voiceName: string) => void;
+  setVoiceName: (voiceName: string | undefined) => void;
   setVoiceLang: (lang: string) => void;
   audioSource: AudioSource;
   setAudioSource: (source: AudioSource) => void;
@@ -72,15 +72,16 @@ const AudioStyleSelector = ({
   chantSpeed,
   setChantSpeed
 }: AudioStyleSelectorProps) => {
+  
+  const [activeTab, setActiveTab] = useState("library");
+
   const handleTabChange = (value: string) => {
-    const sourceTab = value as 'ai' | 'record' | 'upload' | 'defaults';
-    if (sourceTab === 'ai' || sourceTab === 'defaults') {
-        setAudioSource('ai');
-    } else {
+    setActiveTab(value);
+    if (value === 'record' || value === 'upload') {
         setAudioSource('custom');
     }
   }
-  const isCustomAudio = audioSource === 'custom';
+  const isCustomAudio = audioSource === 'custom' && (activeTab === 'record' || activeTab === 'upload');
 
   return (
     <Collapsible className="w-full">
@@ -99,10 +100,10 @@ const AudioStyleSelector = ({
                             id="chant-text"
                             value={chantText}
                             onChange={(e) => setChantText(e.target.value)}
-                            disabled={isChanting || isCustomAudio}
-                            placeholder={isCustomAudio ? "Plays uploaded/recorded audio" : "e.g. Om"}
+                            disabled={isChanting || isCustomAudio || activeTab === 'library'}
+                            placeholder={isCustomAudio || activeTab === 'library' ? "Selected from library" : "e.g. Om"}
                         />
-                        {isCustomAudio && <p className="text-xs text-muted-foreground">Chant text is based on the audio transcription.</p>}
+                        {(isCustomAudio || activeTab === 'library') && <p className="text-xs text-muted-foreground">Chant text is based on the selected audio.</p>}
                     </div>
 
                     <div className="space-y-2">
@@ -121,14 +122,21 @@ const AudioStyleSelector = ({
                             <span>Faster</span>
                         </div>
                     </div>
-                    <Tabs defaultValue="defaults" className="w-full" onValueChange={handleTabChange}>
-                        <TabsList className="grid w-full grid-cols-3">
-                            <TabsTrigger value="defaults" disabled={isChanting}><Sparkles className="mr-2 h-4 w-4" />Defaults</TabsTrigger>
+                    <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+                        <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="library" disabled={isChanting}><Sparkles className="mr-2 h-4 w-4" />Library</TabsTrigger>
+                            <TabsTrigger value="ai" disabled={isChanting}><Wand2 className="mr-2 h-4 w-4" />AI Voice</TabsTrigger>
                             <TabsTrigger value="record" disabled={isChanting}><Mic className="mr-2 h-4 w-4" />Record</TabsTrigger>
                             <TabsTrigger value="upload" disabled={isChanting}><Upload className="mr-2 h-4 w-4" />Upload</TabsTrigger>
                         </TabsList>
-                        <TabsContent value="defaults" className="mt-6">
-                            <DefaultChantsPanel setChantText={setChantText} setVoiceName={setVoiceName} setVoiceLang={setVoiceLang} />
+                        <TabsContent value="library" className="mt-6">
+                            <DefaultChantsPanel 
+                                setChantText={setChantText} 
+                                setVoiceName={setVoiceName} 
+                                setVoiceLang={setVoiceLang}
+                                setAudioSource={setAudioSource}
+                                setCustomAudioUrl={setCustomAudioUrl}
+                            />
                         </TabsContent>
                         <TabsContent value="ai" className="mt-6">
                             <AIGeneratorPanel setVoiceName={setVoiceName} setVoiceLang={setVoiceLang} setAudioSource={setAudioSource} />
@@ -149,13 +157,33 @@ const AudioStyleSelector = ({
 
 
 // Default Chants Panel
-const DefaultChantsPanel = ({ setChantText, setVoiceName, setVoiceLang }: { setChantText: (text: string) => void, setVoiceName: (name: string) => void, setVoiceLang: (lang: string) => void }) => {
+const DefaultChantsPanel = ({ 
+    setChantText, 
+    setVoiceName, 
+    setVoiceLang, 
+    setAudioSource, 
+    setCustomAudioUrl 
+}: { 
+    setChantText: (text: string) => void, 
+    setVoiceName: (name: string | undefined) => void, 
+    setVoiceLang: (lang: string) => void,
+    setAudioSource: (source: AudioSource) => void,
+    setCustomAudioUrl: (url: string | null) => void
+}) => {
     const { toast } = useToast();
 
     const handleSelectChant = (chant: DefaultChant) => {
         setChantText(chant.text);
-        setVoiceName(chant.voiceName);
-        setVoiceLang(chant.lang);
+        if (chant.audioUrl) {
+            setCustomAudioUrl(chant.audioUrl);
+            setAudioSource("custom");
+            setVoiceName(undefined);
+        } else if (chant.voiceName) {
+            setVoiceName(chant.voiceName);
+            setVoiceLang(chant.lang || 'hi-IN');
+            setAudioSource("ai");
+            setCustomAudioUrl(null);
+        }
         toast({
             title: "Chant Selected!",
             description: `Now chanting "${chant.text}".`,
@@ -164,7 +192,7 @@ const DefaultChantsPanel = ({ setChantText, setVoiceName, setVoiceLang }: { setC
     
     return (
         <div className="space-y-4">
-            <p className="text-sm text-center text-muted-foreground">Select a pre-configured chant.</p>
+            <p className="text-sm text-center text-muted-foreground">Select a pre-configured chant from the library.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {defaultChants.map((chant) => (
                     <Button key={chant.id} variant="outline" onClick={() => handleSelectChant(chant)} className="justify-start text-left h-auto py-3">
@@ -199,13 +227,13 @@ const AIGeneratorPanel = ({ setVoiceName, setVoiceLang, setAudioSource }: { setV
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     setResult(null);
-    setAudioSource("ai");
     const response = await getCustomVoice({ desiredStyle: values.desiredStyle });
 
     if (response.success && response.data) {
       const { voiceName, lang } = response.data.voiceConfig.prebuiltVoiceConfig;
       setVoiceName(voiceName);
       setVoiceLang(lang);
+      setAudioSource("ai");
       setResult({
         voiceName: voiceName,
         lang: lang,
@@ -227,16 +255,17 @@ const AIGeneratorPanel = ({ setVoiceName, setVoiceLang, setAudioSource }: { setV
 
   return (
     <div className="space-y-6">
-       <div className="flex items-center gap-3">
-            <Wand2 className="h-6 w-6 text-primary" />
-            <div className="text-left">
-                <h3 className="font-semibold">
-                Generate AI Voice
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                Describe the voice you want the AI to create.
-                </p>
-            </div>
+       <div className="text-center">
+            <p className="text-sm text-muted-foreground mb-4">
+                Describe the voice you want the AI to create. For example, "a calm Indian male voice".
+            </p>
+             <Alert variant="destructive" className="text-left">
+                <Music className="h-4 w-4" />
+                <AlertTitle>Note</AlertTitle>
+                <AlertDescription>
+                The AI can generate different voice styles, but it cannot add background music.
+                </AlertDescription>
+            </Alert>
         </div>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -248,7 +277,7 @@ const AIGeneratorPanel = ({ setVoiceName, setVoiceLang, setAudioSource }: { setV
                 <FormLabel>Desired Voice Style</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder="e.g., 'a calm Indian male voice'"
+                    placeholder="e.g., 'deep, meditative male voice'"
                     {...field}
                   />
                 </FormControl>
@@ -405,16 +434,10 @@ const RecordVoicePanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
 
   return (
     <div className="space-y-4 text-center">
-        <div className="flex items-center gap-3">
-            <Mic className="h-6 w-6 text-primary" />
-            <div className="text-left">
-                <h3 className="font-semibold">
-                Record Voice
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                Record your own voice for the chant.
-                </p>
-            </div>
+        <div className="text-left">
+            <p className="text-sm text-muted-foreground">
+            Record your own voice for the chant. Your recording will be automatically transcribed to update the chant text.
+            </p>
         </div>
       <Button
         onClick={isRecording ? handleStopRecording : handleStartRecording}
@@ -457,6 +480,18 @@ const UploadAudioPanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
     const [transcribedText, setTranscribedText] = useState<string | null>(null);
     const { toast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [currentStatus, setCurrentStatus] = useState<string>('Click or drag to upload');
+
+    useEffect(() => {
+        if (isTranscribing) {
+            setCurrentStatus('Transcribing...');
+        } else if (fileName) {
+            setCurrentStatus(fileName);
+        } else {
+            setCurrentStatus('Click or drag to upload');
+        }
+    }, [isTranscribing, fileName]);
+
 
     const handleTranscription = async (audioBlob: Blob) => {
         setIsTranscribing(true);
@@ -470,17 +505,16 @@ const UploadAudioPanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
                 const fullText = response.data.transcript;
                 setChantText(fullText);
                 setTranscribedText(fullText);
-                toast({ title: "Transcription successful!", description: "The chant text has been updated." });
+                toast({ title: "Transcription successful!", description: "Chant text has been updated." });
             } else {
                  setChantText("Om"); // fallback
-                 setTranscribedText("Om");
+                 setTranscribedText("Could not transcribe.");
                 toast({ variant: "destructive", title: "Transcription Error", description: response.error || "Could not transcribe audio." });
             }
         } catch (error) {
-            // console.error("Transcription error:", error);
-            setChantText("Untrack word"); // fallback
-            setTranscribedText("Untrack word");
-            // toast({ variant: "destructive", title: "Transcription Error", description: "An unexpected error occurred." });
+            setChantText("Om"); // fallback
+            setTranscribedText("An error occurred during transcription.");
+            toast({ variant: "destructive", title: "Transcription Error", description: "An unexpected error occurred." });
         } finally {
             setIsTranscribing(false);
         }
@@ -504,16 +538,10 @@ const UploadAudioPanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
     
     return (
         <div className="space-y-4 text-center">
-            <div className="flex items-center gap-3">
-                <Upload className="h-6 w-6 text-primary" />
-                <div className="text-left">
-                    <h3 className="font-semibold">
-                    Upload Audio
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                    Upload an audio file to use for chanting.
-                    </p>
-                </div>
+            <div className="text-left">
+                <p className="text-sm text-muted-foreground">
+                Upload an audio file for chanting. It will be transcribed to update the chant text.
+                </p>
             </div>
             <div className="space-y-2">
                  <Label htmlFor="audio-upload" className={cn(
@@ -527,13 +555,13 @@ const UploadAudioPanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
                          <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                     )}
                    
-                    <span className="text-sm text-muted-foreground">{isTranscribing ? 'Transcribing...' : (fileName || "Click or drag to upload")}</span>
+                    <span className="text-sm text-muted-foreground truncate max-w-full px-4">{currentStatus}</span>
                 </Label>
                 <Input id="audio-upload" type="file" accept="audio/*" onChange={handleFileChange} className="hidden" disabled={isTranscribing} ref={fileInputRef}/>
             </div>
              {transcribedText && !isTranscribing && (
                 <Alert>
-                    <AlertTitle>File & Transcription Ready</AlertTitle>
+                    <AlertTitle>Transcription Ready</AlertTitle>
                     <AlertDescription className="truncate">
                         {transcribedText.length > 50 ? `${transcribedText.substring(0, 50)}...` : transcribedText}
                     </AlertDescription>
@@ -545,5 +573,3 @@ const UploadAudioPanel = ({ setCustomAudioUrl, setAudioSource, setChantText }: {
 
 
 export default AudioStyleSelector;
-
-    

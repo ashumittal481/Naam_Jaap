@@ -15,7 +15,7 @@ import { Loader } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { PeacockIcon } from "@/lib/icons";
+import { PeacockIcon, MalaBeadsIcon } from "@/lib/icons";
 
 const MALA_COUNT = 108;
 export type AudioSource = "ai" | "custom";
@@ -30,14 +30,14 @@ export default function Home() {
   const [isCelebrating, setIsCelebrating] = useState(false);
   const [mode, setMode] = useState<"manual" | "auto">("manual");
   const [isChanting, setIsChanting] = useState(false);
-  const [chantText, setChantText] = useState("राधा");
+  const [chantText, setChantText] = useState("राधा राधा");
   const [chantSpeed, setChantSpeed] = useState(50);
   
-  const [audioSource, setAudioSource] = useState<AudioSource>("ai");
-  const [voiceName, setVoiceName] = useState<string>("hi-IN-Wavenet-A");
+  const [audioSource, setAudioSource] = useState<AudioSource>("custom");
+  const [voiceName, setVoiceName] = useState<string | undefined>(undefined);
   const [voiceLang, setVoiceLang] = useState<string>("hi-IN");
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
+  const [customAudioUrl, setCustomAudioUrl] = useState<string | null>("/audio/Gausalla Street 2.m4a");
   
   const [chantAnimationKey, setChantAnimationKey] = useState(0);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -73,7 +73,7 @@ export default function Home() {
       const dailyStatDocRef = doc(db, `users/${user.uid}/daily_stats`, today);
       const unsubscribeStats = onSnapshot(dailyStatDocRef, (doc) => {
           if (doc.exists()) {
-              setTodaysJapa(doc.data().malaCount * MALA_COUNT);
+              setTodaysJapa(doc.data().chantCount || 0);
           } else {
               setTodaysJapa(0);
           }
@@ -100,29 +100,29 @@ export default function Home() {
     }
   }, [user]);
 
-  const updateDailyMalaCount = useCallback(async () => {
+  const updateDailyChantCount = useCallback(async () => {
     if (!user) return;
-    const now = Date.now();
-    if (now - lastMalaIncrementTime.current < 1000) {
-      return;
-    }
-    lastMalaIncrementTime.current = now;
-
+    
     const today = new Date().toISOString().split("T")[0];
     const dailyStatDocRef = doc(db, `users/${user.uid}/daily_stats`, today);
+
     try {
-      const docSnap = await getDoc(dailyStatDocRef);
-      if (docSnap.exists()) {
-        await updateDoc(dailyStatDocRef, { malaCount: increment(1) });
-      } else {
-        await setDoc(dailyStatDocRef, { malaCount: 1, date: today });
-      }
-      setTodaysJapa(prev => prev + MALA_COUNT);
-    } catch (error) { console.error(error); }
+        const docSnap = await getDoc(dailyStatDocRef);
+        if (docSnap.exists()) {
+            await updateDoc(dailyStatDocRef, { chantCount: increment(1) });
+        } else {
+            await setDoc(dailyStatDocRef, { chantCount: 1, date: today });
+        }
+    } catch (error) {
+        console.error("Error updating daily chant count:", error);
+    }
   }, [user]);
 
   useEffect(() => {
     audioRef.current = new Audio();
+    setAudioSource("custom");
+    setCustomAudioUrl("/audio/Gausalla Street 2.m4a");
+
     const loadVoices = () => {
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         const availableVoices = window.speechSynthesis.getVoices();
@@ -175,14 +175,17 @@ export default function Home() {
     }
     if (audioSource === 'custom' && customAudioUrl && audioRef.current) {
         const audio = audioRef.current;
+        audio.src = customAudioUrl; // Ensure src is set every time
         const handleAudioEnd = () => {
             onEnd?.();
             audio.removeEventListener('ended', handleAudioEnd);
         };
         audio.addEventListener('ended', handleAudioEnd);
-        audio.src = customAudioUrl;
         audio.playbackRate = 0.5 + (chantSpeed / 100) * 1.5;
-        audio.play().catch(console.error);
+        audio.play().catch(e => {
+            console.error("Audio play failed:", e);
+            onEnd?.(); // Ensure cycle continues even if play fails
+        });
         return;
     }
 
@@ -195,7 +198,7 @@ export default function Home() {
       return;
     }
 
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis) {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis && voiceName) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = voiceLang;
@@ -211,6 +214,7 @@ export default function Home() {
   
   const handleIncrement = useCallback(() => {
     setChantAnimationKey(prev => prev + 1);
+    updateDailyChantCount();
     setCount((prevCount) => {
       const newCount = prevCount + 1;
       if (newCount >= MALA_COUNT) {
@@ -219,13 +223,13 @@ export default function Home() {
         setIsCelebrating(true);
         setTimeout(() => setIsCelebrating(false), 2000);
         saveData(0, newMalas);
-        updateDailyMalaCount();
+        
         return 0;
       }
       saveData(newCount, malas);
       return newCount;
     });
-  }, [malas, saveData, updateDailyMalaCount]);
+  }, [malas, saveData, updateDailyChantCount]);
 
   useEffect(() => {
     let isMounted = true;
@@ -282,7 +286,7 @@ export default function Home() {
         <header className="flex justify-between items-center w-full mb-4">
             <div className="flex items-center gap-2">
                 <PeacockIcon className="h-8 w-8 text-primary" />
-                <h1 className="font-headline text-xl font-bold text-foreground">Naam Jaap</h1>
+                <h1 className="font-headline text-xl font-bold text-foreground">Radha Naam Jap Counter</h1>
             </div>
             <div className="flex items-center gap-2">
                 <Button variant="ghost" size="icon" asChild><Link href="/profile"><UserIcon className="h-5 w-5"/></Link></Button>
@@ -297,7 +301,7 @@ export default function Home() {
                     <span>{formatTime(sessionTime)}</span>
                 </div>
 
-                <div className="relative w-48 h-48 flex items-center justify-center my-4">
+                <div className="relative w-64 h-64 flex items-center justify-center my-4">
                     <svg className="absolute inset-0" viewBox="0 0 100 100">
                         <circle className="text-secondary/20" strokeWidth="8" stroke="currentColor" fill="transparent" r="42" cx="50" cy="50" />
                         <circle
@@ -314,16 +318,16 @@ export default function Home() {
                             style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%', transition: 'stroke-dashoffset 0.3s ease' }}
                         />
                     </svg>
-                     <div 
+                    <div 
                         key={chantAnimationKey}
                         className="absolute inset-0 flex items-center justify-center animate-chant-up"
                     >
-                        <span className="text-2xl font-bold text-center text-accent/80 break-words" style={{ textShadow: '0 0 8px hsl(var(--accent) / 0.4)' }}>
+                        <span className="text-2xl font-bold text-center text-accent/80 break-words max-w-[80%]" style={{ textShadow: '0 0 8px hsl(var(--accent) / 0.4)' }}>
                             {chantText}
                         </span>
                     </div>
                     <div className="relative text-center">
-                         <div className="text-6xl font-bold text-foreground">{count}</div>
+                         <div className="text-7xl font-bold text-foreground">{count}</div>
                     </div>
                 </div>
 
@@ -342,17 +346,10 @@ export default function Home() {
             </CardContent>
         </Card>
         
-        <div className="grid grid-cols-3 gap-4 w-full mb-6">
+        <div className="grid grid-cols-2 gap-4 w-full mb-6">
             <Card className="shadow-md">
                 <CardContent className="p-3 flex flex-col items-center justify-center text-center">
-                    <Repeat className="h-6 w-6 mb-1 text-primary"/>
-                    <p className="text-sm font-semibold">Malas</p>
-                    <p className="text-2xl font-bold">{malas}</p>
-                </CardContent>
-            </Card>
-            <Card className="shadow-md">
-                <CardContent className="p-3 flex flex-col items-center justify-center text-center">
-                    <BarChart className="h-6 w-6 mb-1 text-primary"/>
+                    <MalaBeadsIcon className="h-6 w-6 mb-1 text-primary fill-primary"/>
                     <p className="text-sm font-semibold">Total Jaap</p>
                     <p className="text-2xl font-bold">{totalJapa}</p>
                 </CardContent>
@@ -383,5 +380,3 @@ export default function Home() {
     </main>
   );
 }
-
-    
