@@ -340,7 +340,7 @@ useEffect(() => {
 }, [isChanting, mode, audioSource, chantText, speak, handleIncrement, customAudioUrl, playAudioSeamlessly, stopAudioSeamlessly]);
 
 
-  const handleManualTap = () => { if (mode === "manual") { setIsChanting(true); speak(chantText, () => setIsChanting(false)); handleIncrement(); } };
+  const handleManualTap = () => { if (mode === "manual") { handleIncrement(); } };
   
   const handleAutoToggle = () => {
     setIsChanting(prev => !prev);
@@ -486,3 +486,5 @@ useEffect(() => {
     </main>
   );
 }
+
+    
