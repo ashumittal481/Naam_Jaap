@@ -37,13 +37,19 @@ export default function Home() {
   const [voiceName, setVoiceName] = useState<string | undefined>('hi-IN-Wavenet-D');
   const [voiceLang, setVoiceLang] = useState<string>("hi-IN");
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [customAudioUrl, setCustomAudioUrl] = useState<string | null>("/audio/Gausalla Street 2.m4a");
+  const [customAudioUrl, setCustomAudioUrl] = useState<string | null>("/audio/radhaMaharajji.m4a");
   
   const [chantAnimationKey, setChantAnimationKey] = useState(0);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const isSavingRef = useRef(false);
+  // Refs for seamless audio looping
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioBufferRef = useRef<AudioBuffer | null>(null);
+  const audioPlayer1Ref = useRef<HTMLAudioElement | null>(null);
+  const audioPlayer2Ref = useRef<HTMLAudioElement | null>(null);
+  const activePlayerRef = useRef<number>(1);
+  const audioIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
   const lastMalaIncrementTime = useRef<number>(0);
 
   const [sessionTime, setSessionTime] = useState(0);
@@ -86,24 +92,9 @@ export default function Home() {
     }
   }, [user, isDataLoaded]);
 
-  const saveData = useCallback(async (newCount: number, newMalas: number) => {
-    if (user && !isSavingRef.current) {
-      isSavingRef.current = true;
-      try {
-        const userDocRef = doc(db, "users", user.uid);
-        await setDoc(userDocRef, { count: newCount, malas: newMalas, uid: user.uid }, { merge: true });
-      } catch (error) {
-        console.error("Error saving user data:", error);
-      } finally {
-        isSavingRef.current = false;
-      }
-    }
-  }, [user]);
-
   const updateDailyChantCount = useCallback(async () => {
     if (!user) return;
     
-    // Optimistically update the UI
     setTodaysJapa(prevJapa => prevJapa + 1);
 
     const today = new Date().toISOString().split("T")[0];
@@ -118,33 +109,36 @@ export default function Home() {
         }
     } catch (error) {
         console.error("Error updating daily chant count:", error);
-        // Revert UI update on error
-        setTodaysJapa(prevJapa => prevJapa - 1);
+        // Revert local state if update fails
+        setTodaysJapa(prevJapa => prevJapa > 0 ? prevJapa - 1 : 0);
     }
   }, [user]);
 
+  // Effect to initialize Web Audio API and load the audio file
   useEffect(() => {
-    audioRef.current = new Audio();
+    if (typeof window !== 'undefined') {
+        audioPlayer1Ref.current = new Audio();
+        audioPlayer2Ref.current = new Audio();
+    }
+  }, []);
 
-    const loadVoices = () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        const availableVoices = window.speechSynthesis.getVoices();
-        if (availableVoices.length > 0) {
-          setVoices(availableVoices);
-        }
+  useEffect(() => {
+      if (customAudioUrl && audioPlayer1Ref.current && audioPlayer2Ref.current) {
+          audioPlayer1Ref.current.src = customAudioUrl;
+          audioPlayer2Ref.current.src = customAudioUrl;
+          audioPlayer1Ref.current.load();
+          audioPlayer2Ref.current.load();
       }
-    };
+  }, [customAudioUrl]);
 
+
+  useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis) {
+      const loadVoices = () => setVoices(window.speechSynthesis.getVoices());
       window.speechSynthesis.onvoiceschanged = loadVoices;
       loadVoices();
+      return () => { window.speechSynthesis.onvoiceschanged = null; };
     }
-
-    return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis) {
-        window.speechSynthesis.onvoiceschanged = null;
-      }
-    };
   }, []);
 
   useEffect(() => {
@@ -171,24 +165,91 @@ export default function Home() {
     return `${h}:${m}:${s}`;
   };
 
+  const handleIncrement = useCallback(() => {
+    setChantAnimationKey(prev => prev + 1);
+    updateDailyChantCount();
+    setCount((prevCount) => {
+      const newCount = prevCount + 1;
+      if (newCount >= MALA_COUNT) {
+        const newMalas = malas + 1;
+        setMalas(newMalas);
+        setIsCelebrating(true);
+        setTimeout(() => setIsCelebrating(false), 2000);
+        // Persist malas count but reset chant count
+        if (user) {
+            const userDocRef = doc(db, "users", user.uid);
+            setDoc(userDocRef, { count: 0, malas: newMalas }, { merge: true });
+        }
+        return 0;
+      }
+      // Persist only count
+      if (user) {
+        const userDocRef = doc(db, "users", user.uid);
+        setDoc(userDocRef, { count: newCount }, { merge: true });
+      }
+      return newCount;
+    });
+  }, [malas, user, updateDailyChantCount]);
+
+  const playAudioSeamlessly = useCallback(() => {
+      if (!audioPlayer1Ref.current || !audioPlayer2Ref.current || !audioPlayer1Ref.current.duration) return;
+
+      const player1 = audioPlayer1Ref.current;
+      const player2 = audioPlayer2Ref.current;
+      const duration = player1.duration;
+
+      const playNext = () => {
+          const currentTime = activePlayerRef.current === 1 ? player1.currentTime : player2.currentTime;
+          
+          if (duration - currentTime < 0.5) {
+              if (activePlayerRef.current === 1) {
+                  player2.currentTime = 0;
+                  player2.play();
+                  activePlayerRef.current = 2;
+              } else {
+                  player1.currentTime = 0;
+                  player1.play();
+                  activePlayerRef.current = 1;
+              }
+              handleIncrement();
+          }
+      };
+
+      if (!isChanting) {
+          player1.pause();
+          player2.pause();
+          if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
+          return;
+      }
+      
+      handleIncrement();
+      player1.currentTime = 0;
+      player1.play();
+      activePlayerRef.current = 1;
+      
+      if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
+      audioIntervalRef.current = setInterval(playNext, 100); // Check every 100ms
+  }, [isChanting, handleIncrement]);
+
+
+  const stopAudioSeamlessly = useCallback(() => {
+    if(audioIntervalRef.current) clearInterval(audioIntervalRef.current);
+    audioPlayer1Ref.current?.pause();
+    audioPlayer2Ref.current?.pause();
+  }, []);
+
   const speak = useCallback((text: string, onEnd?: () => void) => {
-    if (!isChanting && mode !== "auto") {
-        onEnd?.();
-        return;
-    }
-    if (audioSource === 'custom' && customAudioUrl && audioRef.current) {
-        const audio = audioRef.current;
-        audio.src = customAudioUrl; // Ensure src is set every time
-        const handleAudioEnd = () => {
-            onEnd?.();
-            audio.removeEventListener('ended', handleAudioEnd);
-        };
-        audio.addEventListener('ended', handleAudioEnd);
-        audio.playbackRate = 0.5 + (chantSpeed / 100) * 1.5;
-        audio.play().catch(e => {
-            console.error("Audio play failed:", e);
-            onEnd?.(); // Ensure cycle continues even if play fails
-        });
+    if (audioSource === 'custom' && customAudioUrl) {
+        const player = audioPlayer1Ref.current;
+        if(player) {
+            player.currentTime = 0;
+            player.play();
+            const handleEnded = () => {
+                onEnd?.();
+                player.removeEventListener('ended', handleEnded);
+            }
+            player.addEventListener('ended', handleEnded);
+        }
         return;
     }
 
@@ -213,63 +274,51 @@ export default function Home() {
     } else {
         onEnd?.();
     }
-  }, [voiceName, voiceLang, voices, isChanting, mode, audioSource, customAudioUrl, isReactNative, chantSpeed]);
+  }, [voiceName, voiceLang, voices, audioSource, isReactNative, chantSpeed, customAudioUrl]);
   
-  const handleIncrement = useCallback(() => {
-    setChantAnimationKey(prev => prev + 1);
-    updateDailyChantCount();
-    setCount((prevCount) => {
-      const newCount = prevCount + 1;
-      if (newCount >= MALA_COUNT) {
-        const newMalas = malas + 1;
-        setMalas(newMalas);
-        setIsCelebrating(true);
-        setTimeout(() => setIsCelebrating(false), 2000);
-        saveData(0, newMalas);
-        
-        return 0;
+
+useEffect(() => {
+    let chantCycleCleanup: (() => void) | undefined;
+
+    if (isChanting && mode === "auto") {
+        if (audioSource === 'custom' && customAudioUrl) {
+            playAudioSeamlessly();
+            chantCycleCleanup = () => stopAudioSeamlessly();
+        } else {
+            let isMounted = true;
+            const chantCycle = () => {
+                if (!isMounted || !isChanting) return;
+                speak(chantText, () => {
+                    if (isMounted && isChanting) {
+                        handleIncrement();
+                        setTimeout(chantCycle, 50);
+                    }
+                });
+            };
+            chantCycle();
+            chantCycleCleanup = () => { isMounted = false; };
+        }
+    } else {
+      if(audioSource === 'custom'){
+        stopAudioSeamlessly();
       }
-      saveData(newCount, malas);
-      return newCount;
-    });
-  }, [malas, saveData, updateDailyChantCount]);
-
-  useEffect(() => {
-    let isMounted = true;
-    let chantTimeout: NodeJS.Timeout;
-
-    const chantCycle = () => {
-        if (!isChanting || mode !== "auto" || !isMounted) return;
-
-        speak(chantText, () => {
-            if (isMounted && isChanting) {
-                handleIncrement();
-                const delay = 50; 
-                chantTimeout = setTimeout(chantCycle, delay);
-            }
-        });
-    };
-
-    if (mode === "auto" && isChanting) {
-        chantCycle();
     }
 
     return () => {
-        isMounted = false;
-        clearTimeout(chantTimeout);
+        chantCycleCleanup?.();
         if (typeof window !== 'undefined' && window.speechSynthesis) {
             window.speechSynthesis.cancel();
         }
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
-        }
     };
-}, [isChanting, mode, chantText, speak, handleIncrement]);
+}, [isChanting, mode, audioSource, chantText, speak, handleIncrement, customAudioUrl, playAudioSeamlessly, stopAudioSeamlessly]);
 
 
   const handleManualTap = () => { if (mode === "manual") { setIsChanting(true); speak(chantText, () => setIsChanting(false)); handleIncrement(); } };
-  const handleAutoToggle = () => { if (mode === "auto") setIsChanting((prev) => !prev); };
+  
+  const handleAutoToggle = () => {
+    setIsChanting(prev => !prev);
+  };
+
   const handleSignOut = async () => { await auth.signOut(); router.push("/login"); };
 
   if (loading || !user || !isDataLoaded) {
@@ -304,10 +353,11 @@ export default function Home() {
                     <span>{formatTime(sessionTime)}</span>
                 </div>
                 <div className="text-2xl font-bold text-center text-accent/80 break-words max-w-[80%] mb-2" style={{ textShadow: '0 0 8px hsl(var(--accent) / 0.4)' }}>
-                    {chantText ==='वाहेगुरु'?'ਵਾਹਿਗੁਰੂ':chantText}
+                    {chantText ==='वाहेगुरु' ? 'ਵਾਹਿਗੁਰੂ' : chantText}
                 </div>
 
-                <div className="relative w-64 h-64 flex items-center justify-center my-4">
+
+                <div className="relative w-72 h-72 sm:w-80 sm:h-80 flex items-center justify-center my-4">
                     <svg className="absolute inset-0" viewBox="0 0 100 100">
                         <circle className="text-secondary/20" strokeWidth="8" stroke="currentColor" fill="transparent" r="42" cx="50" cy="50" />
                         <circle
@@ -378,3 +428,4 @@ export default function Home() {
     </main>
   );
 }
+    
