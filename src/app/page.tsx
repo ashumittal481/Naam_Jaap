@@ -367,7 +367,9 @@ useEffect(() => {
       >
         <div
           className="rounded-md bg-primary px-4 py-2 text-white hover:bg-primary/90"
-        onClick={()=>{setIsImmersive(false)}}>Remove immersive mode</div>
+        onClick={(e)=>{
+          e.stopPropagation();
+          setIsImmersive(false)}}>Remove immersive mode</div>
         {children}
       </div>
     ) : (
@@ -393,7 +395,7 @@ useEffect(() => {
         
         <ImmersiveWrapper>
             <Card 
-            onClick={handleManualTap}
+            onClick={isImmersive?()=>{}: handleManualTap}
             className={cn(
                 "w-full shadow-lg",
                 isImmersive ? "bg-transparent border-0 shadow-none" : "mb-6"
@@ -408,7 +410,7 @@ useEffect(() => {
                     </div>
 
                     <div
-                    onClick={handleManualTap}
+                    // onClick={handleManualTap}
                     className={cn(
                         "relative w-72 h-72 sm:w-80 sm:h-80 flex items-center justify-center my-4",
                         isImmersive && "w-[90vw] h-[90vw] sm:w-[90vw] sm:h-[90vw]"
