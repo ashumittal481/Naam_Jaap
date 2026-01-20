@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 interface ChantControllerProps {
   mode: "manual" | "auto";
   setMode: (mode: "manual" | "auto") => void;
-  onManualTap: () => void;
+  onManualTap: any;
   onAutoToggle: () => void;
   isAutoChanting: boolean;
 }

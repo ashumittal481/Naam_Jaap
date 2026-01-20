@@ -340,7 +340,11 @@ useEffect(() => {
 }, [isChanting, mode, audioSource, chantText, speak, handleIncrement, customAudioUrl, playAudioSeamlessly, stopAudioSeamlessly]);
 
 
-  const handleManualTap = () => { if (mode === "manual") { handleIncrement(); } };
+  const handleManualTap = () => {
+    if (mode === "manual") {
+      handleIncrement();
+    }
+  };
   
   const handleAutoToggle = () => {
     setIsChanting(prev => !prev);
@@ -443,7 +447,9 @@ useEffect(() => {
                                 setIsChanting(false);
                                 setMode(newMode);
                             }}
-                            onManualTap={handleManualTap}
+                            onManualTap={(e:any)=>{
+                              e.stopPropagation();
+                              handleManualTap()}}
                             onAutoToggle={handleAutoToggle}
                             isAutoChanting={isChanting}
                         />
@@ -495,5 +501,3 @@ useEffect(() => {
     </main>
   );
 }
-
-    
