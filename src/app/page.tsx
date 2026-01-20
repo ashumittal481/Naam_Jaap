@@ -54,11 +54,7 @@ export default function Home() {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [isImmersive, setIsImmersive] = useState(false);
 
-  // Refs for seamless audio looping
-  const audioPlayer1Ref = useRef<HTMLAudioElement | null>(null);
-  const audioPlayer2Ref = useRef<HTMLAudioElement | null>(null);
-  const activePlayerRef = useRef<number>(1);
-  const audioIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   
   const lastMalaIncrementTime = useRef<number>(0);
 
@@ -167,20 +163,16 @@ export default function Home() {
     });
   }, [malas, user, updateDailyChantCount]);
 
-  // Effect to initialize Web Audio API and load the audio file
   useEffect(() => {
     if (typeof window !== 'undefined') {
-        audioPlayer1Ref.current = new Audio();
-        audioPlayer2Ref.current = new Audio();
+        audioPlayerRef.current = new Audio();
     }
   }, []);
 
   useEffect(() => {
-      if (customAudioUrl && audioPlayer1Ref.current && audioPlayer2Ref.current) {
-          audioPlayer1Ref.current.src = customAudioUrl;
-          audioPlayer2Ref.current.src = customAudioUrl;
-          audioPlayer1Ref.current.load();
-          audioPlayer2Ref.current.load();
+      if (customAudioUrl && audioPlayerRef.current) {
+          audioPlayerRef.current.src = customAudioUrl;
+          audioPlayerRef.current.load();
       }
   }, [customAudioUrl]);
 
@@ -218,68 +210,7 @@ export default function Home() {
     return `${h}:${m}:${s}`;
   };
 
-  const playAudioSeamlessly = useCallback(() => {
-      if (!audioPlayer1Ref.current || !audioPlayer2Ref.current || !audioPlayer1Ref.current.duration) return;
-
-      const player1 = audioPlayer1Ref.current;
-      const player2 = audioPlayer2Ref.current;
-      const duration = player1.duration;
-
-      const playNext = () => {
-          const currentTime = activePlayerRef.current === 1 ? player1.currentTime : player2.currentTime;
-          
-          if (duration - currentTime < 0.5) {
-              if (activePlayerRef.current === 1) {
-                  player2.currentTime = 0;
-                  player2.play();
-                  activePlayerRef.current = 2;
-              } else {
-                  player1.currentTime = 0;
-                  player1.play();
-                  activePlayerRef.current = 1;
-              }
-              handleIncrement();
-          }
-      };
-
-      if (!isChanting) {
-          player1.pause();
-          player2.pause();
-          if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
-          return;
-      }
-      
-      handleIncrement();
-      player1.currentTime = 0;
-      player1.play();
-      activePlayerRef.current = 1;
-      
-      if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
-      audioIntervalRef.current = setInterval(playNext, 100); // Check every 100ms
-  }, [isChanting, handleIncrement]);
-
-
-  const stopAudioSeamlessly = useCallback(() => {
-    if(audioIntervalRef.current) clearInterval(audioIntervalRef.current);
-    audioPlayer1Ref.current?.pause();
-    audioPlayer2Ref.current?.pause();
-  }, []);
-
   const speak = useCallback((text: string, onEnd?: () => void) => {
-    if (audioSource === 'custom' && customAudioUrl) {
-        const player = audioPlayer1Ref.current;
-        if(player) {
-            player.currentTime = 0;
-            player.play();
-            const handleEnded = () => {
-                onEnd?.();
-                player.removeEventListener('ended', handleEnded);
-            }
-            player.addEventListener('ended', handleEnded);
-        }
-        return;
-    }
-
     if (isReactNative) {
       (window as any).ReactNativeWebView.postMessage(JSON.stringify({
         type: 'SPEAK',
@@ -301,16 +232,32 @@ export default function Home() {
     } else {
         onEnd?.();
     }
-  }, [voiceName, voiceLang, voices, audioSource, isReactNative, chantSpeed, customAudioUrl]);
+  }, [voiceName, voiceLang, voices, isReactNative, chantSpeed]);
   
 
-useEffect(() => {
-    let chantCycleCleanup: (() => void) | undefined;
+  useEffect(() => {
+    const audioPlayer = audioPlayerRef.current;
+
+    const handleAudioLoop = () => {
+        handleIncrement();
+        if (audioPlayer) {
+            audioPlayer.currentTime = 0;
+            audioPlayer.play();
+        }
+    };
 
     if (isChanting && mode === "auto") {
-        if (audioSource === 'custom' && customAudioUrl) {
-            playAudioSeamlessly();
-            chantCycleCleanup = () => stopAudioSeamlessly();
+        if (audioSource === 'custom' && customAudioUrl && audioPlayer) {
+            audioPlayer.addEventListener('ended', handleAudioLoop);
+            handleIncrement(); 
+            audioPlayer.play().catch(e => console.error("Error playing audio:", e));
+
+            return () => {
+                if (audioPlayer) {
+                    audioPlayer.pause();
+                    audioPlayer.removeEventListener('ended', handleAudioLoop);
+                }
+            };
         } else {
             let isMounted = true;
             const chantCycle = () => {
@@ -323,21 +270,26 @@ useEffect(() => {
                 });
             };
             chantCycle();
-            chantCycleCleanup = () => { isMounted = false; };
+            
+            return () => { 
+                isMounted = false; 
+                if (typeof window !== 'undefined' && window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                }
+            };
         }
-    } else {
-      if(audioSource === 'custom'){
-        stopAudioSeamlessly();
-      }
     }
 
     return () => {
-        chantCycleCleanup?.();
+        if (audioPlayer) {
+            audioPlayer.pause();
+            audioPlayer.removeEventListener('ended', handleAudioLoop);
+        }
         if (typeof window !== 'undefined' && window.speechSynthesis) {
             window.speechSynthesis.cancel();
         }
     };
-}, [isChanting, mode, audioSource, chantText, speak, handleIncrement, customAudioUrl, playAudioSeamlessly, stopAudioSeamlessly]);
+}, [isChanting, mode, audioSource, customAudioUrl, chantText, speak, handleIncrement]);
 
 
   const handleManualTap = () => {
