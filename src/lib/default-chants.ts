@@ -13,13 +13,13 @@ export const defaultChants: DefaultChant[] = [
         id: 'radha-radha-premanand',
         text: 'राधा राधा',
         description: 'Authentic chant musically.',
-        audioUrl: '/audio/radhaMaharajji.m4a',
+        audioUrl: '/audio/radhatrack5.m4a',
     },
     {
         id: 'radha-radha',
         text: 'राधा राधा',
         description: 'Radha Radha Slowly.',
-        audioUrl: '/audio/radhaSlowly.m4a',
+        audioUrl: '/audio/radhaMaharajji.m4a',
     },
     {
         id: 'ram-ram',
