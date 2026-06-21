@@ -37,10 +37,13 @@ const transcribeAudioFlow = ai.defineFlow(
   },
   async (input) => {
     const { text } = await ai.generate({
-      model: 'googleai/gemini-2.5-flash',
-      prompt: [{ media: { url: input.audioDataUri } }, { text: 'Transcribe the audio.' }],
+     model: 'googleai/gemini-flash-latest',
+      prompt: [
+        { media: { url: input.audioDataUri } },
+        { text: 'Transcribe the audio accurately into Hindi script (Devanagari). Return ONLY the transcribed text in Hindi. Do not include any English, explanations, or commentary. If no speech is detected, return "ॐ".' }
+      ],
     });
 
-    return { transcript: text };
+    return { transcript: text || 'Om' };
   }
 );

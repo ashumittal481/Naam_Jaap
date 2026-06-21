@@ -137,7 +137,8 @@ const AudioStyleSelector = ({
                              <AIGeneratorPanel setChantState={setChantState} />
                         </TabsContent>
                         <TabsContent value="record" className="mt-6">
-                            <RecordVoicePanel setChantState={setChantState} chantState={chantState} />
+                            <RecordVoicePanel setChantState={(data)=>{                              
+                              setChantState(data)}} chantState={chantState} />
                         </TabsContent>
                         <TabsContent value="upload" className="mt-6">
                             <UploadAudioPanel setChantState={setChantState} chantState={chantState} />
@@ -347,13 +348,14 @@ const RecordVoicePanel = ({ setChantState, chantState }: { setChantState: (state
       const response = await getTranscript({ audioDataUri });
       
       const newChantText = (response.success && response.data) ? response.data.transcript : "Om";
-      setChantState(prevState => ({
-          ...prevState,
+      console.log('newChantText',newChantText);
+      
+      setChantState({
           chantText: newChantText,
           audioSource: "custom",
           customAudioUrl: audioDataUri,
           voiceName: undefined
-      }));
+      });      
 
       if (response.success) {
           toast({ title: "Transcription successful!", description: "The chant text has been updated." });
@@ -388,7 +390,7 @@ const RecordVoicePanel = ({ setChantState, chantState }: { setChantState: (state
       mediaRecorderRef.current.onstop = () => {
         const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        const url = URL.createObjectURL(audioBlob);
+        const url = URL.createObjectURL(audioBlob);        
         setAudioURL(url); // For temporary playback
         audioChunksRef.current = [];
         toast({ title: "Recording finished.", description: "Transcribing your chant now..." });
